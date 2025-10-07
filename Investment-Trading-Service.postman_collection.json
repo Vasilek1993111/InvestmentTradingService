@@ -1,0 +1,408 @@
+{
+    "info": {
+        "_postman_id": "investment-trading-service-collection",
+        "name": "Investment Trading Service API",
+        "description": "Коллекция для тестирования API сервиса интеграции с Tinkoff Invest API",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_exporter_id": "investment-trading-service"
+    },
+    "item": [
+        {
+            "name": "Cache Management",
+            "item": [
+                {
+                    "name": "Clear All Caches",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/clear",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "clear"
+                            ]
+                        },
+                        "description": "Очищает все кэши системы (sharesCache, futuresCache и т.д.)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Force Update Cache",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "\"entity\""
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/force-update",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "force-update"
+                            ]
+                        },
+                        "description": "Принудительно обновляет кэш системы"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Cache Statistics",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/statistics",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "statistics"
+                            ]
+                        },
+                        "description": "Получает статистику кэша для диагностики проблем"
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Операции управления кэшем системы"
+        },
+        {
+            "name": "Instruments Data",
+            "item": [
+                {
+                    "name": "Get All Instruments",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/instruments",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "instruments"
+                            ]
+                        },
+                        "description": "Получает все инструменты из кэша (акции, фьючерсы, индикативные)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Shares Only",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/shares",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "shares"
+                            ]
+                        },
+                        "description": "Получает акции только из кэша (без обращения к БД)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Futures Only",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/futures",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "futures"
+                            ]
+                        },
+                        "description": "Получает фьючерсы только из кэша (без обращения к БД)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Indicatives Only",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/indicatives",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "indicatives"
+                            ]
+                        },
+                        "description": "Получает индикативы только из кэша (без обращения к БД)"
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Получение данных об инструментах"
+        },
+        {
+            "name": "Price Data",
+            "item": [
+                {
+                    "name": "Get Main Prices",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/main-prices",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "main-prices"
+                            ]
+                        },
+                        "description": "Получает основные цены из кэша"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Evening Prices",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/evening-prices",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "evening-prices"
+                            ]
+                        },
+                        "description": "Получает вечерние цены из кэша"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Open Prices",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/open-prices",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "open-prices"
+                            ]
+                        },
+                        "description": "Получает цены открытия из кэша"
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Получение данных о ценах"
+        },
+        {
+            "name": "Dividends Data",
+            "item": [
+                {
+                    "name": "Get Dividends",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/divedends",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "divedends"
+                            ]
+                        },
+                        "description": "Получает данные о дивидендах из кэша"
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Получение данных о дивидендах"
+        },
+        {
+            "name": "Instrument by FIGI",
+            "item": [
+                {
+                    "name": "Get Instrument by FIGI",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/by-figi/{{figi}}?figi={{figi}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "by-figi",
+                                "{{figi}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "figi",
+                                    "value": "{{figi}}"
+                                }
+                            ]
+                        },
+                        "description": "Получает данные об инструменте по FIGI коду"
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Получение данных об инструменте по FIGI"
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    "// Логирование запроса",
+                    "console.log('Making request to: ' + pm.request.url);",
+                    "console.log('Request method: ' + pm.request.method);"
+                ]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    "// Базовые проверки ответа",
+                    "pm.test('Response time is less than 5000ms', function () {",
+                    "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+                    "});",
+                    "",
+                    "pm.test('Response has valid JSON format', function () {",
+                    "    if (pm.response.headers.get('Content-Type') && pm.response.headers.get('Content-Type').includes('application/json')) {",
+                    "        pm.response.to.have.jsonBody();",
+                    "    }",
+                    "});",
+                    "",
+                    "// Логирование ответа",
+                    "console.log('Response status: ' + pm.response.status);",
+                    "console.log('Response time: ' + pm.response.responseTime + 'ms');"
+                ]
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8089",
+            "type": "string"
+        },
+        {
+            "key": "figi",
+            "value": "BBG004730N88",
+            "type": "string",
+            "description": "Пример FIGI кода для тестирования (Sberbank)"
+        }
+    ]
+}
