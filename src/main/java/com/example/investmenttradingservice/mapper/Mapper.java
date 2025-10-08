@@ -1,12 +1,18 @@
 package com.example.investmenttradingservice.mapper;
 
 import com.example.investmenttradingservice.DTO.ShareDTO;
+import com.example.investmenttradingservice.entity.FutureEntity;
+import com.example.investmenttradingservice.entity.IndicativeEntity;
+import com.example.investmenttradingservice.entity.OpenPriceEntity;
+import com.example.investmenttradingservice.entity.ShareEntity;
+import com.example.investmenttradingservice.util.TimeZoneUtils;
 import com.example.investmenttradingservice.DTO.FutureDTO;
 import com.example.investmenttradingservice.DTO.IndicativeDTO;
-import com.example.investmenttradingservice.Entity.ShareEntity;
-import com.example.investmenttradingservice.Entity.FutureEntity;
-import com.example.investmenttradingservice.Entity.IndicativeEntity;
-import com.example.investmenttradingservice.util.TimeZoneUtils;
+import com.example.investmenttradingservice.DTO.OpenPriceDTO;
+import com.example.investmenttradingservice.DTO.ClosePriceDTO;
+import com.example.investmenttradingservice.entity.ClosePriceEntity;
+import com.example.investmenttradingservice.entity.ClosePriceEveningSessionEntity;
+import com.example.investmenttradingservice.DTO.ClosePriceEveningSessionDTO;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -353,6 +359,228 @@ public class Mapper {
         }
         return dtos.stream()
                 .map(this::toIndicativeEntity)
+                .collect(Collectors.toList());
+    }
+
+    // ========== Методы для ClosePrice ==========
+
+    /**
+     * Преобразует ClosePriceEntity в ClosePriceDTO
+     *
+     * @param entity ClosePriceEntity для преобразования
+     * @return ClosePriceDTO
+     */
+    public ClosePriceDTO toClosePriceDTO(ClosePriceEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        return new ClosePriceDTO(
+                entity.getId().getPriceDate(),
+                entity.getId().getFigi(),
+                entity.getInstrumentType(),
+                entity.getClosePrice(),
+                entity.getCurrency(),
+                entity.getExchange(),
+                entity.getCreatedAt().toLocalDateTime(),
+                entity.getUpdatedAt().toLocalDateTime());
+    }
+
+    /**
+     * Преобразует ClosePriceDTO в ClosePriceEntity
+     *
+     * @param dto ClosePriceDTO для преобразования
+     * @return ClosePriceEntity
+     */
+    public ClosePriceEntity toClosePriceEntity(ClosePriceDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+
+        return new ClosePriceEntity(
+                dto.priceDate(),
+                dto.figi(),
+                dto.instrumentType(),
+                dto.closePrice(),
+                dto.currency(),
+                dto.exchange());
+    }
+
+    /**
+     * Преобразует список ClosePriceEntity в список ClosePriceDTO
+     *
+     * @param entities список ClosePriceEntity для преобразования
+     * @return список ClosePriceDTO
+     */
+    public List<ClosePriceDTO> toClosePriceDTOList(List<ClosePriceEntity> entities) {
+        if (isEmpty(entities)) {
+            return List.of();
+        }
+        return entities.stream()
+                .map(this::toClosePriceDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Преобразует список ClosePriceDTO в список ClosePriceEntity
+     *
+     * @param dtos список ClosePriceDTO для преобразования
+     * @return список ClosePriceEntity
+     */
+    public List<ClosePriceEntity> toClosePriceEntityList(List<ClosePriceDTO> dtos) {
+        if (isEmpty(dtos)) {
+            return List.of();
+        }
+        return dtos.stream()
+                .map(this::toClosePriceEntity)
+                .collect(Collectors.toList());
+    }
+
+    // ========== Методы для OpenPrice ==========
+
+    /**
+     * Преобразует OpenPriceEntity в OpenPriceDTO
+     *
+     * @param entity OpenPriceEntity для преобразования
+     * @return OpenPriceDTO
+     */
+    public OpenPriceDTO toOpenPriceDTO(OpenPriceEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        return new OpenPriceDTO(
+                entity.getId().getFigi(),
+                entity.getId().getPriceDate(),
+                entity.getOpenPrice(),
+                entity.getInstrumentType(),
+                entity.getCurrency(),
+                entity.getExchange(),
+                entity.getCreatedAt().toLocalDateTime(),
+                entity.getUpdatedAt().toLocalDateTime());
+    }
+
+    /**
+     * Преобразует OpenPriceDTO в OpenPriceEntity
+     *
+     * @param dto OpenPriceDTO для преобразования
+     * @return OpenPriceEntity
+     */
+    public OpenPriceEntity toOpenPriceEntity(OpenPriceDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+
+        return new OpenPriceEntity(
+                dto.priceDate(),
+                dto.figi(),
+                dto.instrumentType(),
+                dto.openPrice(),
+                dto.currency(),
+                dto.exchange());
+    }
+
+    /**
+     * Преобразует список OpenPriceEntity в список OpenPriceDTO
+     *
+     * @param entities список OpenPriceEntity для преобразования
+     * @return список OpenPriceDTO
+     */
+    public List<OpenPriceDTO> toOpenPriceDTOList(List<OpenPriceEntity> entities) {
+        if (isEmpty(entities)) {
+            return List.of();
+        }
+        return entities.stream()
+                .map(this::toOpenPriceDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Преобразует список OpenPriceDTO в список OpenPriceEntity
+     *
+     * @param dtos список OpenPriceDTO для преобразования
+     * @return список OpenPriceEntity
+     */
+    public List<OpenPriceEntity> toOpenPriceEntityList(List<OpenPriceDTO> dtos) {
+        if (isEmpty(dtos)) {
+            return List.of();
+        }
+        return dtos.stream()
+                .map(this::toOpenPriceEntity)
+                .collect(Collectors.toList());
+    }
+
+    // ========== Методы для ClosePriceEveningSession ==========
+
+    /**
+     * Преобразует ClosePriceEveningSessionEntity в ClosePriceEveningSessionDTO
+     *
+     * @param entity ClosePriceEveningSessionEntity для преобразования
+     * @return ClosePriceEveningSessionDTO
+     */
+    public ClosePriceEveningSessionDTO toClosePriceEveningSessionDTO(ClosePriceEveningSessionEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        return new ClosePriceEveningSessionDTO(
+                entity.getPriceDate(),
+                entity.getFigi(),
+                entity.getClosePrice(),
+                entity.getInstrumentType(),
+                entity.getCurrency(),
+                entity.getExchange());
+    }
+
+    /**
+     * Преобразует ClosePriceEveningSessionDTO в ClosePriceEveningSessionEntity
+     *
+     * @param dto ClosePriceEveningSessionDTO для преобразования
+     * @return ClosePriceEveningSessionEntity
+     */
+    public ClosePriceEveningSessionEntity toClosePriceEveningSessionEntity(ClosePriceEveningSessionDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        return new ClosePriceEveningSessionEntity(
+                dto.priceDate(),
+                dto.figi(),
+                dto.closePrice(),
+                dto.instrumentType(),
+                dto.currency(),
+                dto.exchange());
+    }
+
+    /**
+     * Преобразует список ClosePriceEveningSessionEntity в список
+     * ClosePriceEveningSessionDTO
+     *
+     * @param entities список ClosePriceEveningSessionEntity для преобразования
+     * @return список ClosePriceEveningSessionDTO
+     */
+    public List<ClosePriceEveningSessionDTO> toClosePriceEveningSessionDTOList(
+            List<ClosePriceEveningSessionEntity> entities) {
+        if (isEmpty(entities)) {
+            return List.of();
+        }
+        return entities.stream()
+                .map(this::toClosePriceEveningSessionDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Преобразует список ClosePriceEveningSessionDTO в список
+     * ClosePriceEveningSessionEntity
+     *
+     * @param dtos список ClosePriceEveningSessionDTO для преобразования
+     * @return список ClosePriceEveningSessionEntity
+     */
+    public List<ClosePriceEveningSessionEntity> toClosePriceEveningSessionEntityList(
+            List<ClosePriceEveningSessionDTO> dtos) {
+        if (isEmpty(dtos)) {
+            return List.of();
+        }
+        return dtos.stream()
+                .map(this::toClosePriceEveningSessionEntity)
                 .collect(Collectors.toList());
     }
 }

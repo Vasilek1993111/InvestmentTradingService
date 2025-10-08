@@ -57,6 +57,11 @@ public class CacheConfig {
     /** Имя кэша для цен закрытия */
     private static final String CLOSE_PRICES_CACHE = "closePricesCache";
 
+    private static final String OPEN_PRICES_CACHE = "openPricesCache";
+    
+    /** Имя кэша для цен закрытия вечерней сессии */
+    private static final String CLOSE_PRICES_EVENING_SESSION_CACHE = "closePricesEveningSessionCache";
+
     /**
      * Создает конфигурацию Caffeine для кэширования
      * 
@@ -95,7 +100,9 @@ public class CacheConfig {
                 SHARE_CACHE,
                 FUTURES_CACHE,
                 INDICATIVES_CACHE,
-                CLOSE_PRICES_CACHE);
+                CLOSE_PRICES_CACHE,
+                OPEN_PRICES_CACHE,
+                CLOSE_PRICES_EVENING_SESSION_CACHE);
         cacheManager.setCaffeine(caffeine);
         return cacheManager;
     }

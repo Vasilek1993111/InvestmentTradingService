@@ -1,4 +1,4 @@
-package com.example.investmenttradingservice.Entity;
+package com.example.investmenttradingservice.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -33,5 +33,4 @@ public class ShareEntity {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
-
 }

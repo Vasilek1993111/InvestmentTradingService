@@ -151,3 +151,4 @@ public class LogDirectoryService {
         return dateDir.exists() && dateDir.isDirectory();
     }
 }
+

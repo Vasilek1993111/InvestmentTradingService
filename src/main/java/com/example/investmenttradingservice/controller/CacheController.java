@@ -17,11 +17,15 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import com.example.investmenttradingservice.DTO.ClosePriceDTO;
+import com.example.investmenttradingservice.DTO.ClosePriceEveningSessionDTO;
 import com.example.investmenttradingservice.DTO.FutureDTO;
 import com.example.investmenttradingservice.DTO.IndicativeDTO;
+import com.example.investmenttradingservice.DTO.OpenPriceDTO;
 import com.example.investmenttradingservice.DTO.ShareDTO;
 import com.example.investmenttradingservice.service.CacheInstrumentsService;
 import com.example.investmenttradingservice.service.CacheService;
+import com.example.investmenttradingservice.util.ApiResponseBuilder;
 
 /**
  * REST контроллер для управления кэшем
@@ -212,6 +216,11 @@ public class CacheController {
             response.put("shares", cacheData.get("shares"));
             response.put("futures", cacheData.get("futures"));
             response.put("indicatives", cacheData.get("indicatives"));
+            response.put("closePrices_size", cacheData.get("closePrices_size"));
+            response.put("openPrices_size", cacheData.get("openPrices_size"));
+            response.put("closePriceEveningSessions_size", cacheData.get("closePriceEveningSessions_size"));
+            response.put("closePriceEveningSessions", cacheData.get("closePriceEveningSessions"));
+            response.put("openPrices", cacheData.get("openPrices"));
             response.put("timestamp", LocalDateTime.now());
 
             logger.info("Инструменты успешно получены из кэша: {} акций, {} фьючерсов, {} индикативов",
@@ -250,30 +259,11 @@ public class CacheController {
 
         try {
             List<ShareDTO> shares = cacheInstrumentsService.getSharesFromCacheOnly();
-
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("success", true);
-            response.put("status", "success");
-            response.put("message", "Акции успешно получены из кэша");
-            response.put("shares_size", shares.size());
-            response.put("shares", shares);
-            response.put("timestamp", LocalDateTime.now());
-
             logger.info("Акции успешно получены из кэша: {} записей", shares.size());
-
-            return ResponseEntity.ok().body(response);
-
+            return ApiResponseBuilder.success("Акции успешно получены из кэша", shares, shares.size(), "shares");
         } catch (Exception e) {
             logger.error("Ошибка при получении акций из кэша: {}", e.getMessage(), e);
-
-            Map<String, Object> errorResponse = new LinkedHashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("status", "error");
-            errorResponse.put("message", "Ошибка при получении акций из кэша: " + e.getMessage());
-            errorResponse.put("error", e.getClass().getSimpleName());
-            errorResponse.put("timestamp", LocalDateTime.now());
-
-            return ResponseEntity.internalServerError().body(errorResponse);
+            return ApiResponseBuilder.error("Ошибка при получении акций из кэша", e);
         }
     }
 
@@ -294,30 +284,11 @@ public class CacheController {
 
         try {
             List<FutureDTO> futures = cacheInstrumentsService.getFuturesFromCacheOnly();
-
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("success", true);
-            response.put("status", "success");
-            response.put("message", "Фьючерсы успешно получены из кэша");
-            response.put("futures_size", futures.size());
-            response.put("futures", futures);
-            response.put("timestamp", LocalDateTime.now());
-
             logger.info("Фьючерсы успешно получены из кэша: {} записей", futures.size());
-
-            return ResponseEntity.ok().body(response);
-
+            return ApiResponseBuilder.success("Фьючерсы успешно получены из кэша", futures, futures.size(), "futures");
         } catch (Exception e) {
             logger.error("Ошибка при получении фьючерсов из кэша: {}", e.getMessage(), e);
-
-            Map<String, Object> errorResponse = new LinkedHashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("status", "error");
-            errorResponse.put("message", "Ошибка при получении фьючерсов из кэша: " + e.getMessage());
-            errorResponse.put("error", e.getClass().getSimpleName());
-            errorResponse.put("timestamp", LocalDateTime.now());
-
-            return ResponseEntity.internalServerError().body(errorResponse);
+            return ApiResponseBuilder.error("Ошибка при получении фьючерсов из кэша", e);
         }
     }
 
@@ -338,46 +309,69 @@ public class CacheController {
 
         try {
             List<IndicativeDTO> indicatives = cacheInstrumentsService.getIndicativesFromCacheOnly();
-
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("success", true);
-            response.put("status", "success");
-            response.put("message", "Индикативы успешно получены из кэша");
-            response.put("indicatives_size", indicatives.size());
-            response.put("indicatives", indicatives);
-            response.put("timestamp", LocalDateTime.now());
-
             logger.info("Индикативы успешно получены из кэша: {} записей", indicatives.size());
-
-            return ResponseEntity.ok().body(response);
-
+            return ApiResponseBuilder.success("Индикативы успешно получены из кэша", indicatives, indicatives.size(),
+                    "indicatives");
         } catch (Exception e) {
             logger.error("Ошибка при получении индикативов из кэша: {}", e.getMessage(), e);
-
-            Map<String, Object> errorResponse = new LinkedHashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("status", "error");
-            errorResponse.put("message", "Ошибка при получении индикативов из кэша: " + e.getMessage());
-            errorResponse.put("error", e.getClass().getSimpleName());
-            errorResponse.put("timestamp", LocalDateTime.now());
-
-            return ResponseEntity.internalServerError().body(errorResponse);
+            return ApiResponseBuilder.error("Ошибка при получении индикативов из кэша", e);
         }
     }
 
-    @GetMapping("/main-prices")
-    public String getMainPrices() {
-        return new String();
-    }
+    /**
+     * Получение цен закрытия ТОЛЬКО из кэша
+     *
+     * <p>
+     * Этот эндпоинт возвращает цены закрытия исключительно из кэша без обращения к
+     * базе данных.
+     * Если кэш пуст, возвращается пустой список.
+     * </p>
+     *
+     * @return ResponseEntity с ценами закрытия из кэша
+     */
+    @GetMapping("/close-prices")
+    public ResponseEntity<Object> getClosePrices() {
+        logger.info("Получен запрос на цены закрытия только из кэша");
 
-    @GetMapping("/evening-prices")
-    public String getEveningPrices() {
-        return new String();
+        try {
+            List<ClosePriceDTO> closePrices = cacheInstrumentsService.getClosePrices();
+            logger.info("Цены закрытия успешно получены из кэша: {} записей", closePrices.size());
+            return ApiResponseBuilder.success("Цены закрытия успешно получены из кэша", closePrices, closePrices.size(),
+                    "close_prices");
+        } catch (Exception e) {
+            logger.error("Ошибка при получении цен закрытия из кэша: {}", e.getMessage(), e);
+            return ApiResponseBuilder.error("Ошибка при получении цен закрытия из кэша", e);
+        }
     }
 
     @GetMapping("/open-prices")
-    public String getOpenPrices() {
-        return new String();
+    public ResponseEntity<Object> getOpenPrices() {
+        logger.info("Получен запрос на цены открытия только из кэша");
+
+        try {
+            List<OpenPriceDTO> openPrices = cacheInstrumentsService.getOpenPricesFromCacheOnly();
+            logger.info("Цены открытия успешно получены из кэша: {} записей", openPrices.size());
+            return ApiResponseBuilder.success("Цены открытия успешно получены из кэша", openPrices, openPrices.size(),
+                    "open_prices");
+        } catch (Exception e) {
+            logger.error("Ошибка при получении цен открытия из кэша: {}", e.getMessage(), e);
+            return ApiResponseBuilder.error("Ошибка при получении цен открытия из кэша", e);
+        }
+    }
+
+    @GetMapping("/close-price-evening-sessions")
+    public ResponseEntity<Object> getClosePriceEveningSessions() {
+        try {
+            List<ClosePriceEveningSessionDTO> closePriceEveningSessions = cacheInstrumentsService
+                    .getClosePriceEveningSessionsFromCacheOnly();
+            logger.info("Получен запрос на цены закрытия вечерней сессии только из кэша");
+            return ApiResponseBuilder.success("Цены закрытия вечерней сессии успешно получены из кэша",
+                    closePriceEveningSessions, closePriceEveningSessions.size(),
+                    "close_price_evening_sessions");
+        } catch (Exception e) {
+            logger.error("Ошибка при получении цен закрытия вечерней сессии из кэша: {}", e.getMessage(), e);
+            return ApiResponseBuilder.error("Ошибка при получении цен закрытия вечерней сессии из кэша", e);
+        }
     }
 
     @GetMapping("/divedends")
@@ -398,51 +392,6 @@ public class CacheController {
      * включая количество записей и используемые ключи.
      * </p>
      *
-     * <p>
-     * Поддерживает два формата ответа:
-     * </p>
-     * <ul>
-     * <li>Текстовый формат (по умолчанию)</li>
-     * <li>JSON формат (при указании Accept: application/json)</li>
-     * </ul>
-     *
-     * <p>
-     * Пример успешного ответа (текстовый):
-     * </p>
-     * 
-     * <pre>{@code
-     * {
-     *   "message": "Статистика кэша получена",
-     *   "status": "success",
-     *   "cache_statistics": "=== Подробная статистика кэша ===\n...",
-     *   "timestamp": 1234567890
-     * }
-     * }</pre>
-     *
-     * <p>
-     * Пример успешного ответа (JSON):
-     * </p>
-     * 
-     * <pre>{@code
-     * {
-     *   "message": "Статистика кэша получена",
-     *   "status": "success",
-     *   "cache_statistics_json": {
-     *     "timestamp": "2024-01-15T12:00:00",
-     *     "total_caches": 3,
-     *     "cache_type": "Caffeine Cache",
-     *     "caches": {
-     *       "shares_cache": {
-     *         "exists": true,
-     *         "size": 1,
-     *         "hit_rate": "85.50%",
-     *         "keys": ["all_shares"]
-     *       }
-     *     }
-     *   },
-     *   "timestamp": 1234567890
-     * }
-     * }</pre>
      *
      * @return ResponseEntity с статистикой кэша
      */
@@ -452,14 +401,12 @@ public class CacheController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            String statistics = cacheService.getCacheStatistics();
-            Map<String, Object> statisticsJson = cacheService.getCacheStatisticsJson();
+            Map<String, Object> statistics = cacheService.getCacheStats();
 
             response.put("message", "Статистика кэша получена");
             response.put("status", "success");
             response.put("cache_statistics", statistics);
-            response.put("cache_statistics_json", statisticsJson);
-            response.put("timestamp", System.currentTimeMillis());
+            response.put("timestamp", LocalDateTime.now());
 
             logger.info("Статистика кэша успешно получена через API");
             return ResponseEntity.ok().body(response);

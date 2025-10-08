@@ -10,19 +10,19 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 @Entity
-@Table(name = "close_prices", schema = "invest")
+@Table(name = "open_prices", schema = "invest")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ClosePriceEntity {
+public class OpenPriceEntity {
     @EmbeddedId
-    private ClosePriceKey id;
+    private OpenPriceKey id;
 
     @Column(name = "instrument_type", nullable = false)
     private String instrumentType;
 
-    @Column(name = "close_price", nullable = false, precision = 18, scale = 9)
-    private BigDecimal closePrice;
+    @Column(name = "open_price", nullable = false, precision = 18, scale = 9)
+    private BigDecimal openPrice;
 
     @Column(nullable = false)
     private String currency;
@@ -36,11 +36,11 @@ public class ClosePriceEntity {
     @Column(name = "updated_at", nullable = false)
     private ZonedDateTime updatedAt = ZonedDateTime.now(ZoneId.of("Europe/Moscow"));
 
-    public ClosePriceEntity(LocalDate date, String figi, String instrumentType,
-            BigDecimal closePrice, String currency, String exchange) {
-        this.id = new ClosePriceKey(date, figi);
+    public OpenPriceEntity(LocalDate date, String figi, String instrumentType,
+            BigDecimal openPrice, String currency, String exchange) {
+        this.id = new OpenPriceKey(date, figi);
         this.instrumentType = instrumentType;
-        this.closePrice = closePrice;
+        this.openPrice = openPrice;
         this.currency = currency;
         this.exchange = exchange;
         this.createdAt = ZonedDateTime.now(ZoneId.of("Europe/Moscow"));

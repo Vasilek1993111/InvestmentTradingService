@@ -5,7 +5,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import com.example.investmenttradingservice.Entity.FutureEntity;
+import com.example.investmenttradingservice.entity.FutureEntity;
+
 import java.time.LocalDateTime;
 import java.util.List;
 

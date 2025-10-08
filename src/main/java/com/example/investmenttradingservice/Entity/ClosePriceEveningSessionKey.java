@@ -1,26 +1,22 @@
 package com.example.investmenttradingservice.entity;
 
-import jakarta.persistence.Embeddable;
-
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.Objects;
 
-@Embeddable
-public class ClosePriceKey implements Serializable {
+public class ClosePriceEveningSessionKey implements Serializable {
+
     private LocalDate priceDate;
     private String figi;
 
-    // Конструкторы
-    public ClosePriceKey() {
+    public ClosePriceEveningSessionKey() {
     }
 
-    public ClosePriceKey(LocalDate priceDate, String figi) {
+    public ClosePriceEveningSessionKey(LocalDate priceDate, String figi) {
         this.priceDate = priceDate;
         this.figi = figi;
     }
 
-    // Геттеры и сеттеры
     public LocalDate getPriceDate() {
         return priceDate;
     }
@@ -37,14 +33,13 @@ public class ClosePriceKey implements Serializable {
         this.figi = figi;
     }
 
-    // Реализация equals и hashCode (обязательно для композитных ключей)
     @Override
     public boolean equals(Object o) {
         if (this == o)
             return true;
         if (o == null || getClass() != o.getClass())
             return false;
-        ClosePriceKey that = (ClosePriceKey) o;
+        ClosePriceEveningSessionKey that = (ClosePriceEveningSessionKey) o;
         return Objects.equals(priceDate, that.priceDate) && Objects.equals(figi, that.figi);
     }
 
