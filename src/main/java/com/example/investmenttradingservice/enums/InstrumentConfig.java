@@ -23,8 +23,10 @@ public enum InstrumentConfig {
     FUTURES(InstrumentType.FUTURES, null, null),
     INDICATIVES(InstrumentType.INDICATIVES, null, null),
     CLOSE_PRICES(InstrumentType.CLOSE_PRICES, null, null),
-    OPEN_PRICES(InstrumentType.OPEN_PRICES, null, null), 
-    CLOSE_PRICES_EVENING_SESSION(InstrumentType.CLOSE_PRICES_EVENING_SESSION, null, null);
+    OPEN_PRICES(InstrumentType.OPEN_PRICES, null, null),
+    CLOSE_PRICES_EVENING_SESSION(InstrumentType.CLOSE_PRICES_EVENING_SESSION, null, null),
+    LAST_PRICES(InstrumentType.LAST_PRICES, null, null),
+    DIVIDENDS(InstrumentType.DIVIDENDS, null, null);
 
     /** Тип инструмента */
     private final InstrumentType instrumentType;

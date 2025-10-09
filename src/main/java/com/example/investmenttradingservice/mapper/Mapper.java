@@ -13,6 +13,10 @@ import com.example.investmenttradingservice.DTO.ClosePriceDTO;
 import com.example.investmenttradingservice.entity.ClosePriceEntity;
 import com.example.investmenttradingservice.entity.ClosePriceEveningSessionEntity;
 import com.example.investmenttradingservice.DTO.ClosePriceEveningSessionDTO;
+import com.example.investmenttradingservice.entity.LastPriceEntity;
+import com.example.investmenttradingservice.DTO.LastPriceDTO;
+import com.example.investmenttradingservice.entity.DividendEntity;
+import com.example.investmenttradingservice.DTO.DividendDto;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -581,6 +585,154 @@ public class Mapper {
         }
         return dtos.stream()
                 .map(this::toClosePriceEveningSessionEntity)
+                .collect(Collectors.toList());
+    }
+
+    // ========== Методы для LastPrice ==========
+
+    /**
+     * Преобразует LastPriceEntity в LastPriceDTO
+     *
+     * @param entity LastPriceEntity для преобразования
+     * @return LastPriceDTO
+     */
+    public LastPriceDTO toLastPriceDTO(LastPriceEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        return new LastPriceDTO(
+                entity.getId().getFigi(),
+                null, // direction - не хранится в Entity
+                entity.getPrice(),
+                0L, // quantity - не хранится в Entity
+                entity.getId().getTime().atZone(java.time.ZoneId.of("Europe/Moscow")).toInstant(),
+                null // tradeSource - не хранится в Entity
+        );
+    }
+
+    /**
+     * Преобразует LastPriceDTO в LastPriceEntity
+     *
+     * @param dto LastPriceDTO для преобразования
+     * @return LastPriceEntity
+     */
+    public LastPriceEntity toLastPriceEntity(LastPriceDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+
+        LocalDateTime time = LocalDateTime.ofInstant(dto.time(), java.time.ZoneId.of("Europe/Moscow"));
+        return new LastPriceEntity(
+                dto.figi(),
+                time,
+                dto.price(),
+                null, // currency - не передается в DTO
+                null // exchange - не передается в DTO
+        );
+    }
+
+    /**
+     * Преобразует список LastPriceEntity в список LastPriceDTO
+     *
+     * @param entities список LastPriceEntity для преобразования
+     * @return список LastPriceDTO
+     */
+    public List<LastPriceDTO> toLastPriceDTOList(List<LastPriceEntity> entities) {
+        if (isEmpty(entities)) {
+            return List.of();
+        }
+        return entities.stream()
+                .map(this::toLastPriceDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Преобразует список LastPriceDTO в список LastPriceEntity
+     *
+     * @param dtos список LastPriceDTO для преобразования
+     * @return список LastPriceEntity
+     */
+    public List<LastPriceEntity> toLastPriceEntityList(List<LastPriceDTO> dtos) {
+        if (isEmpty(dtos)) {
+            return List.of();
+        }
+        return dtos.stream()
+                .map(this::toLastPriceEntity)
+                .collect(Collectors.toList());
+    }
+
+    // ========== Методы для Dividend ==========
+
+    /**
+     * Преобразует DividendEntity в DividendDto
+     *
+     * @param entity DividendEntity для преобразования
+     * @return DividendDto
+     */
+    public DividendDto toDividendDto(DividendEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        return new DividendDto(
+                entity.getFigi(),
+                entity.getDeclaredDate(),
+                entity.getRecordDate(),
+                entity.getPaymentDate(),
+                entity.getDividendValue(),
+                entity.getCurrency(),
+                entity.getDividendType());
+    }
+
+    /**
+     * Преобразует DividendDto в DividendEntity
+     *
+     * @param dto DividendDto для преобразования
+     * @return DividendEntity
+     */
+    public DividendEntity toDividendEntity(DividendDto dto) {
+        if (dto == null) {
+            return null;
+        }
+
+        return new DividendEntity(
+                dto.figi(),
+                dto.declaredDate(),
+                dto.recordDate(),
+                dto.paymentDate(),
+                dto.dividendValue(),
+                dto.currency(),
+                dto.dividendType());
+    }
+
+    /**
+     * Преобразует список DividendEntity в список DividendDto
+     *
+     * @param entities список DividendEntity для преобразования
+     * @return список DividendDto
+     */
+    public List<DividendDto> toDividendDtoList(List<DividendEntity> entities) {
+        if (isEmpty(entities)) {
+            return List.of();
+        }
+        return entities.stream()
+                .map(this::toDividendDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Преобразует список DividendDto в список DividendEntity
+     *
+     * @param dtos список DividendDto для преобразования
+     * @return список DividendEntity
+     */
+    public List<DividendEntity> toDividendEntityList(List<DividendDto> dtos) {
+        if (isEmpty(dtos)) {
+            return List.of();
+        }
+        return dtos.stream()
+                .map(this::toDividendEntity)
                 .collect(Collectors.toList());
     }
 }

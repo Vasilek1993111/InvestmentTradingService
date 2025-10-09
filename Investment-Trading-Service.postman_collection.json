@@ -1,0 +1,686 @@
+{
+    "info": {
+        "_postman_id": "investment-trading-service-api",
+        "name": "Investment Trading Service API",
+        "description": "Коллекция для тестирования API инвестиционного торгового сервиса с интеграцией Tinkoff Invest API",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_exporter_id": "investment-trading-service"
+    },
+    "item": [
+        {
+            "name": "Cache Management",
+            "description": "Управление кэшем системы",
+            "item": [
+                {
+                    "name": "Clear Cache",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/clear",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "clear"
+                            ]
+                        },
+                        "description": "Очистка всех кэшей системы"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Force Update Cache",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/force-update",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "force-update"
+                            ]
+                        },
+                        "description": "Принудительное обновление кэша"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Cache Statistics",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/statistics",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "statistics"
+                            ]
+                        },
+                        "description": "Получение статистики кэша для диагностики"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Instruments",
+            "description": "Получение инструментов из кэша",
+            "item": [
+                {
+                    "name": "Get All Instruments",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/instruments",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "instruments"
+                            ]
+                        },
+                        "description": "Получение всех инструментов (акции, фьючерсы, индикативы, цены, дивиденды) из кэша"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Shares",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/shares",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "shares"
+                            ]
+                        },
+                        "description": "Получение акций только из кэша"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Futures",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/futures",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "futures"
+                            ]
+                        },
+                        "description": "Получение фьючерсов только из кэша"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Indicatives",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/indicatives",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "indicatives"
+                            ]
+                        },
+                        "description": "Получение индикативов только из кэша"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Prices",
+            "description": "Получение цен из кэша",
+            "item": [
+                {
+                    "name": "Get Close Prices",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/close-prices",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "close-prices"
+                            ]
+                        },
+                        "description": "Получение цен закрытия только из кэша"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Open Prices",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/open-prices",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "open-prices"
+                            ]
+                        },
+                        "description": "Получение цен открытия только из кэша"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Last Prices",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/last-prices",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "last-prices"
+                            ]
+                        },
+                        "description": "Получение последних цен инструментов только из кэша"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Close Price Evening Sessions",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/close-price-evening-sessions",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "close-price-evening-sessions"
+                            ]
+                        },
+                        "description": "Получение цен закрытия вечерней сессии только из кэша"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Dividends",
+            "description": "Получение дивидендов из кэша",
+            "item": [
+                {
+                    "name": "Get Dividends",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/dividends",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "dividends"
+                            ]
+                        },
+                        "description": "Получение дивидендов на сегодня/завтра только из кэша"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Search by FIGI",
+            "description": "Поиск инструментов по FIGI",
+            "item": [
+                {
+                    "name": "Get Instrument by FIGI",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/by-figi/{{figi}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "by-figi",
+                                "{{figi}}"
+                            ]
+                        },
+                        "description": "Поиск инструмента по FIGI во всех типах кэшей с fallback на БД"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Instrument by FIGI (Cache Only)",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/cache/by-figi-cache-only/{{figi}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "cache",
+                                "by-figi-cache-only",
+                                "{{figi}}"
+                            ]
+                        },
+                        "description": "Поиск инструмента по FIGI только в кэше (без обращения к БД)"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Health & Monitoring",
+            "description": "Мониторинг состояния приложения",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/actuator/health",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "actuator",
+                                "health"
+                            ]
+                        },
+                        "description": "Проверка состояния приложения"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Application Info",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/actuator/info",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "actuator",
+                                "info"
+                            ]
+                        },
+                        "description": "Получение информации о приложении"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Metrics",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/actuator/metrics",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "actuator",
+                                "metrics"
+                            ]
+                        },
+                        "description": "Получение метрик приложения"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Testing Scenarios",
+            "description": "Сценарии тестирования",
+            "item": [
+                {
+                    "name": "Full Cache Test",
+                    "item": [
+                        {
+                            "name": "1. Clear Cache",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Cache cleared successfully', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json().status).to.eql('success');",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/cache/clear",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "cache",
+                                        "clear"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "2. Force Update Cache",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Cache updated successfully', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json().status).to.eql('success');",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/cache/force-update",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "cache",
+                                        "force-update"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "3. Get All Instruments",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Instruments retrieved successfully', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json().success).to.be.true;",
+                                            "    pm.expect(pm.response.json().shares).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().futures).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().lastPrices).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().dividends).to.be.an('array');",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/cache/instruments",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "cache",
+                                        "instruments"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "4. Get Cache Statistics",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Cache statistics retrieved', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json().status).to.eql('success');",
+                                            "    pm.expect(pm.response.json().cache_statistics).to.be.an('object');",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/cache/statistics",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "cache",
+                                        "statistics"
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    "description": "Полный тест кэширования: очистка → обновление → получение данных → статистика"
+                },
+                {
+                    "name": "Performance Test",
+                    "item": [
+                        {
+                            "name": "Get Instruments (Performance)",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Response time is less than 2000ms', function () {",
+                                            "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                                            "});",
+                                            "",
+                                            "pm.test('Instruments data is valid', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json().success).to.be.true;",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/cache/instruments",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "cache",
+                                        "instruments"
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    "description": "Тест производительности API"
+                },
+                {
+                    "name": "FIGI Search Test",
+                    "item": [
+                        {
+                            "name": "1. Search by FIGI (with fallback)",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Instrument found by FIGI', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json().success).to.be.true;",
+                                            "    pm.expect(pm.response.json().figi).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().instruments).to.be.an('array');",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/cache/by-figi/{{figi}}",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "cache",
+                                        "by-figi",
+                                        "{{figi}}"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "2. Search by FIGI (cache only)",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Instrument found by FIGI in cache only', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json().success).to.be.true;",
+                                            "    pm.expect(pm.response.json().cache_only).to.be.true;",
+                                            "    pm.expect(pm.response.json().instruments).to.be.an('array');",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/cache/by-figi-cache-only/{{figi}}",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "cache",
+                                        "by-figi-cache-only",
+                                        "{{figi}}"
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    "description": "Тест поиска инструментов по FIGI"
+                }
+            ]
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8080",
+            "type": "string"
+        }
+    ]
+}

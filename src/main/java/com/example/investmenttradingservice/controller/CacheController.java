@@ -13,9 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import com.example.investmenttradingservice.DTO.ClosePriceDTO;
 import com.example.investmenttradingservice.DTO.ClosePriceEveningSessionDTO;
@@ -23,6 +22,9 @@ import com.example.investmenttradingservice.DTO.FutureDTO;
 import com.example.investmenttradingservice.DTO.IndicativeDTO;
 import com.example.investmenttradingservice.DTO.OpenPriceDTO;
 import com.example.investmenttradingservice.DTO.ShareDTO;
+import com.example.investmenttradingservice.DTO.LastPriceDTO;
+import com.example.investmenttradingservice.DTO.DividendDto;
+import com.example.investmenttradingservice.enums.InstrumentType;
 import com.example.investmenttradingservice.service.CacheInstrumentsService;
 import com.example.investmenttradingservice.service.CacheService;
 import com.example.investmenttradingservice.util.ApiResponseBuilder;
@@ -136,7 +138,7 @@ public class CacheController {
     }
 
     @PostMapping("/force-update")
-    public ResponseEntity<Map<String, Object>> forceUpdateCache(@RequestBody String entity) {
+    public ResponseEntity<Map<String, Object>> forceUpdateCache() {
         Map<String, Object> response = new HashMap<>();
         try {
             cacheService.manualWarmupCache();
@@ -219,12 +221,18 @@ public class CacheController {
             response.put("closePrices_size", cacheData.get("closePrices_size"));
             response.put("openPrices_size", cacheData.get("openPrices_size"));
             response.put("closePriceEveningSessions_size", cacheData.get("closePriceEveningSessions_size"));
+            response.put("lastPrices_size", cacheData.get("lastPrices_size"));
+            response.put("dividends_size", cacheData.get("dividends_size"));
             response.put("closePriceEveningSessions", cacheData.get("closePriceEveningSessions"));
             response.put("openPrices", cacheData.get("openPrices"));
+            response.put("lastPrices", cacheData.get("lastPrices"));
+            response.put("dividends", cacheData.get("dividends"));
             response.put("timestamp", LocalDateTime.now());
 
-            logger.info("Инструменты успешно получены из кэша: {} акций, {} фьючерсов, {} индикативов",
-                    cacheData.get("shares_size"), cacheData.get("futures_size"), cacheData.get("indicatives_size"));
+            logger.info(
+                    "Инструменты успешно получены из кэша: {} акций, {} фьючерсов, {} индикативов, {} цен последних сделок, {} дивидендов",
+                    cacheData.get("shares_size"), cacheData.get("futures_size"), cacheData.get("indicatives_size"),
+                    cacheData.get("lastPrices_size"), cacheData.get("dividends_size"));
 
             return ResponseEntity.ok().body(response);
 
@@ -334,10 +342,12 @@ public class CacheController {
         logger.info("Получен запрос на цены закрытия только из кэша");
 
         try {
-            List<ClosePriceDTO> closePrices = cacheInstrumentsService.getClosePrices();
+            List<ClosePriceDTO> closePrices = cacheInstrumentsService.getClosePricesFromCacheOnly();
+            LocalDateTime requestDate = cacheInstrumentsService
+                    .getRequestDateForInstrument(InstrumentType.CLOSE_PRICES);
             logger.info("Цены закрытия успешно получены из кэша: {} записей", closePrices.size());
             return ApiResponseBuilder.success("Цены закрытия успешно получены из кэша", closePrices, closePrices.size(),
-                    "close_prices");
+                    "close_prices", requestDate);
         } catch (Exception e) {
             logger.error("Ошибка при получении цен закрытия из кэша: {}", e.getMessage(), e);
             return ApiResponseBuilder.error("Ошибка при получении цен закрытия из кэша", e);
@@ -350,9 +360,10 @@ public class CacheController {
 
         try {
             List<OpenPriceDTO> openPrices = cacheInstrumentsService.getOpenPricesFromCacheOnly();
+            LocalDateTime requestDate = cacheInstrumentsService.getRequestDateForInstrument(InstrumentType.OPEN_PRICES);
             logger.info("Цены открытия успешно получены из кэша: {} записей", openPrices.size());
             return ApiResponseBuilder.success("Цены открытия успешно получены из кэша", openPrices, openPrices.size(),
-                    "open_prices");
+                    "open_prices", requestDate);
         } catch (Exception e) {
             logger.error("Ошибка при получении цен открытия из кэша: {}", e.getMessage(), e);
             return ApiResponseBuilder.error("Ошибка при получении цен открытия из кэша", e);
@@ -364,24 +375,175 @@ public class CacheController {
         try {
             List<ClosePriceEveningSessionDTO> closePriceEveningSessions = cacheInstrumentsService
                     .getClosePriceEveningSessionsFromCacheOnly();
+            LocalDateTime requestDate = cacheInstrumentsService
+                    .getRequestDateForInstrument(InstrumentType.CLOSE_PRICES_EVENING_SESSION);
             logger.info("Получен запрос на цены закрытия вечерней сессии только из кэша");
             return ApiResponseBuilder.success("Цены закрытия вечерней сессии успешно получены из кэша",
                     closePriceEveningSessions, closePriceEveningSessions.size(),
-                    "close_price_evening_sessions");
+                    "close_price_evening_sessions", requestDate);
         } catch (Exception e) {
             logger.error("Ошибка при получении цен закрытия вечерней сессии из кэша: {}", e.getMessage(), e);
             return ApiResponseBuilder.error("Ошибка при получении цен закрытия вечерней сессии из кэша", e);
         }
     }
 
-    @GetMapping("/divedends")
-    public String getDivedends() {
-        return new String();
+    /**
+     * Получение дивидендов ТОЛЬКО из кэша
+     *
+     * <p>
+     * Этот эндпоинт возвращает дивиденды исключительно из кэша без обращения к базе
+     * данных.
+     * Если кэш пуст, возвращается пустой список.
+     * </p>
+     *
+     * @return ResponseEntity с дивидендами из кэша
+     */
+    @GetMapping("/dividends")
+    public ResponseEntity<Object> getDividends() {
+        logger.info("Получен запрос на дивиденды только из кэша");
+
+        try {
+            List<DividendDto> dividends = cacheInstrumentsService.getDividendsFromCacheOnly();
+            LocalDateTime requestDate = cacheInstrumentsService.getRequestDateForInstrument(InstrumentType.DIVIDENDS);
+            logger.info("Дивиденды успешно получены из кэша: {} записей", dividends.size());
+            return ApiResponseBuilder.success("Дивиденды успешно получены из кэша", dividends, dividends.size(),
+                    "dividends", requestDate);
+        } catch (Exception e) {
+            logger.error("Ошибка при получении дивидендов из кэша: {}", e.getMessage(), e);
+            return ApiResponseBuilder.error("Ошибка при получении дивидендов из кэша", e);
+        }
     }
 
+    /**
+     * Получение последних цен ТОЛЬКО из кэша
+     *
+     * <p>
+     * Этот эндпоинт возвращает последние цены инструментов исключительно из кэша
+     * без обращения к базе
+     * данных.
+     * Если кэш пуст, возвращается пустой список.
+     * </p>
+     *
+     * @return ResponseEntity с последними ценами из кэша
+     */
+    @GetMapping("/last-prices")
+    public ResponseEntity<Object> getLastPrices() {
+        logger.info("Получен запрос на последние цены только из кэша");
+
+        try {
+            List<LastPriceDTO> lastPrices = cacheInstrumentsService.getLastPricesFromCacheOnly();
+            LocalDateTime requestDate = cacheInstrumentsService.getRequestDateForInstrument(InstrumentType.LAST_PRICES);
+            logger.info("Последние цены успешно получены из кэша: {} записей", lastPrices.size());
+            return ApiResponseBuilder.success("Последние цены успешно получены из кэша", lastPrices, lastPrices.size(),
+                    "last_prices", requestDate);
+        } catch (Exception e) {
+            logger.error("Ошибка при получении последних цен из кэша: {}", e.getMessage(), e);
+            return ApiResponseBuilder.error("Ошибка при получении последних цен из кэша", e);
+        }
+    }
+
+    /**
+     * Получение информации об инструменте по FIGI из кэша
+     *
+     * <p>
+     * Этот эндпоинт выполняет поиск инструмента по FIGI во всех типах кэшей:
+     * акции, фьючерсы, индикативы, цены закрытия, цены открытия, цены последних
+     * сделок и дивиденды.
+     * Возвращает все найденные записи, связанные с указанным FIGI.
+     * </p>
+     *
+     * <p>
+     * Особенности:
+     * </p>
+     * <ul>
+     * <li>Поиск во всех типах инструментов</li>
+     * <li>Возвращает объединенный результат</li>
+     * <li>Включает fallback на базу данных</li>
+     * <li>Логирование результатов поиска</li>
+     * </ul>
+     *
+     * @param figi идентификатор инструмента для поиска
+     * @return ResponseEntity с найденными записями
+     */
     @GetMapping("/by-figi/{figi}")
-    public String getFutures(@RequestParam String figi) {
-        return new String();
+    public ResponseEntity<Object> getInstrumentByFigi(@PathVariable String figi) {
+        logger.info("Получен запрос на поиск инструмента по FIGI: {}", figi);
+
+        try {
+            List<Object> instruments = cacheInstrumentsService.getInstrumentByFigi(figi);
+            logger.info("Найдено {} записей для FIGI: {}", instruments.size(), figi);
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("success", true);
+            response.put("status", "success");
+            response.put("message", "Инструмент найден по FIGI: " + figi);
+            response.put("figi", figi);
+            response.put("total_found", instruments.size());
+            response.put("instruments", instruments);
+            response.put("timestamp", LocalDateTime.now());
+
+            return ResponseEntity.ok().body(response);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при поиске инструмента по FIGI {}: {}", figi, e.getMessage(), e);
+
+            Map<String, Object> errorResponse = new LinkedHashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Ошибка при поиске инструмента по FIGI: " + e.getMessage());
+            errorResponse.put("figi", figi);
+            errorResponse.put("error", e.getClass().getSimpleName());
+            errorResponse.put("timestamp", LocalDateTime.now());
+
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
+    }
+
+    /**
+     * Получение информации об инструменте по FIGI ТОЛЬКО из кэша
+     *
+     * <p>
+     * Этот эндпоинт выполняет поиск инструмента по FIGI только в кэшированных
+     * данных.
+     * Не обращается к базе данных, поэтому работает быстрее.
+     * </p>
+     *
+     * @param figi идентификатор инструмента для поиска
+     * @return ResponseEntity с найденными записями из кэша
+     */
+    @GetMapping("/by-figi-cache-only/{figi}")
+    public ResponseEntity<Object> getInstrumentByFigiFromCacheOnly(@PathVariable String figi) {
+        logger.info("Получен запрос на поиск инструмента по FIGI только в кэше: {}", figi);
+
+        try {
+            List<Object> instruments = cacheInstrumentsService.getInstrumentByFigiFromCacheOnly(figi);
+            logger.info("Найдено {} записей в кэше для FIGI: {}", instruments.size(), figi);
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("success", true);
+            response.put("status", "success");
+            response.put("message", "Инструмент найден в кэше по FIGI: " + figi);
+            response.put("figi", figi);
+            response.put("total_found", instruments.size());
+            response.put("instruments", instruments);
+            response.put("cache_only", true);
+            response.put("timestamp", LocalDateTime.now());
+
+            return ResponseEntity.ok().body(response);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при поиске инструмента по FIGI в кэше {}: {}", figi, e.getMessage(), e);
+
+            Map<String, Object> errorResponse = new LinkedHashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Ошибка при поиске инструмента по FIGI в кэше: " + e.getMessage());
+            errorResponse.put("figi", figi);
+            errorResponse.put("error", e.getClass().getSimpleName());
+            errorResponse.put("timestamp", LocalDateTime.now());
+
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
     }
 
     /**

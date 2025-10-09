@@ -1,6 +1,7 @@
 package com.example.investmenttradingservice.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -26,15 +27,21 @@ import com.example.investmenttradingservice.entity.FutureEntity;
 import com.example.investmenttradingservice.entity.IndicativeEntity;
 import com.example.investmenttradingservice.entity.ShareEntity;
 import com.example.investmenttradingservice.entity.OpenPriceEntity;
+import com.example.investmenttradingservice.entity.LastPriceEntity;
+import com.example.investmenttradingservice.entity.DividendEntity;
 import com.example.investmenttradingservice.repository.ClosePriceEveningSessionRepository;
 import com.example.investmenttradingservice.repository.ClosePriceRepository;
 import com.example.investmenttradingservice.repository.FutureRepository;
 import com.example.investmenttradingservice.repository.Indicativerepository;
 import com.example.investmenttradingservice.repository.OpenPriceRepositrory;
 import com.example.investmenttradingservice.repository.ShareRepository;
+import com.example.investmenttradingservice.repository.LastPriceRepository;
+import com.example.investmenttradingservice.repository.DivedendsRepository;
 import com.example.investmenttradingservice.util.WorkingDaysUtils;
 import com.example.investmenttradingservice.DTO.ClosePriceDTO;
 import com.example.investmenttradingservice.DTO.ClosePriceEveningSessionDTO;
+import com.example.investmenttradingservice.DTO.LastPriceDTO;
+import com.example.investmenttradingservice.DTO.DividendDto;
 import com.example.investmenttradingservice.enums.InstrumentType;
 import com.example.investmenttradingservice.enums.InstrumentConfig;
 import java.util.function.Function;
@@ -104,6 +111,12 @@ public class CacheInstrumentsService {
     /** Репозиторий для работы с ценами закрытия вечерней сессии */
     private final ClosePriceEveningSessionRepository closePriceEveningSessionRepository;
 
+    /** Репозиторий для работы с ценами последних сделок */
+    private final LastPriceRepository lastPriceRepository;
+
+    /** Репозиторий для работы с дивидендами */
+    private final DivedendsRepository divedendsRepository;
+
     /** Менеджер кэша для управления кэшированием */
     private final CacheManager cacheManager;
 
@@ -114,23 +127,37 @@ public class CacheInstrumentsService {
     /**
      * Конструктор сервиса кэшированных инструментов
      *
-     * @param shareRepository      репозиторий для работы с акциями
-     * @param futureRepository     репозиторий для работы с фьючерсами
-     * @param indicativeRepository репозиторий для работы с индикативами
-     * @param closePriceRepository репозиторий для работы с ценами закрытия
-     * @param openPriceRepository  репозиторий для работы с ценами открытия
-     * @param cacheManager         менеджер кэша
+     * @param shareRepository                    репозиторий для работы с акциями
+     * @param futureRepository                   репозиторий для работы с фьючерсами
+     * @param indicativeRepository               репозиторий для работы с
+     *                                           индикативами
+     * @param closePriceRepository               репозиторий для работы с ценами
+     *                                           закрытия
+     * @param openPriceRepository                репозиторий для работы с ценами
+     *                                           открытия
+     * @param closePriceEveningSessionRepository репозиторий для работы с ценами
+     *                                           закрытия вечерней сессии
+     * @param lastPriceRepository                репозиторий для работы с ценами
+     *                                           последних сделок
+     * @param divedendsRepository                репозиторий для работы с
+     *                                           дивидендами
+     * @param cacheManager                       менеджер кэша
      */
     public CacheInstrumentsService(ShareRepository shareRepository, FutureRepository futureRepository,
             Indicativerepository indicativeRepository, ClosePriceRepository closePriceRepository,
             OpenPriceRepositrory openPriceRepository,
-            ClosePriceEveningSessionRepository closePriceEveningSessionRepository, CacheManager cacheManager) {
+            ClosePriceEveningSessionRepository closePriceEveningSessionRepository,
+            LastPriceRepository lastPriceRepository,
+            DivedendsRepository divedendsRepository,
+            CacheManager cacheManager) {
         this.shareRepository = shareRepository;
         this.futureRepository = futureRepository;
         this.indicativeRepository = indicativeRepository;
         this.closePriceRepository = closePriceRepository;
         this.openPriceRepository = openPriceRepository;
         this.closePriceEveningSessionRepository = closePriceEveningSessionRepository;
+        this.lastPriceRepository = lastPriceRepository;
+        this.divedendsRepository = divedendsRepository;
         this.cacheManager = cacheManager;
 
         // Инициализация конфигурации инструментов
@@ -319,6 +346,8 @@ public class CacheInstrumentsService {
             List<OpenPriceDTO> openPrices = getInstrumentData(InstrumentType.OPEN_PRICES, true);
             List<ClosePriceEveningSessionDTO> closePriceEveningSessions = getInstrumentData(
                     InstrumentType.CLOSE_PRICES_EVENING_SESSION, true);
+            List<LastPriceDTO> lastPrices = getInstrumentData(InstrumentType.LAST_PRICES, true);
+            List<DividendDto> dividends = getInstrumentData(InstrumentType.DIVIDENDS, true);
 
             // Формируем результат
             result.put("shares", shares);
@@ -327,19 +356,24 @@ public class CacheInstrumentsService {
             result.put("closePrices", closePrices);
             result.put("openPrices", openPrices);
             result.put("closePriceEveningSessions", closePriceEveningSessions);
+            result.put("lastPrices", lastPrices);
+            result.put("dividends", dividends);
             result.put("shares_size", shares.size());
             result.put("futures_size", futures.size());
             result.put("indicatives_size", indicatives.size());
             result.put("closePrices_size", closePrices.size());
             result.put("openPrices_size", openPrices.size());
             result.put("closePriceEveningSessions_size", closePriceEveningSessions.size());
+            result.put("lastPrices_size", lastPrices.size());
+            result.put("dividends_size", dividends.size());
             result.put("total_instruments",
                     shares.size() + futures.size() + indicatives.size() + closePrices.size() + openPrices.size()
-                            + closePriceEveningSessions.size());
+                            + closePriceEveningSessions.size() + lastPrices.size() + dividends.size());
 
             logger.info(
-                    "Получены инструменты только из кэша: {} акций, {} фьючерсов, {} индикативов, {} цен закрытия, {} цен открытия",
-                    shares.size(), futures.size(), indicatives.size(), closePrices.size(), openPrices.size());
+                    "Получены инструменты только из кэша: {} акций, {} фьючерсов, {} индикативов, {} цен закрытия, {} цен открытия, {} цен последних сделок, {} дивидендов",
+                    shares.size(), futures.size(), indicatives.size(), closePrices.size(), openPrices.size(),
+                    lastPrices.size(), dividends.size());
 
         } catch (Exception e) {
             logger.error("Ошибка при получении всех инструментов только из кэша: {}", e.getMessage(), e);
@@ -480,6 +514,341 @@ public class CacheInstrumentsService {
         return getInstrumentData(InstrumentType.CLOSE_PRICES_EVENING_SESSION, true);
     }
 
+    /**
+     * Получает список всех цен последних сделок из кэша с fallback на базу данных
+     *
+     * <p>
+     * Сначала пытается получить цены последних сделок из кэша lastPricesCache. Если
+     * кэш
+     * пуст или произошла ошибка, загружает данные из базы данных через
+     * LastPriceRepository.
+     * </p>
+     *
+     * @return список цен последних сделок в формате LastPriceDTO
+     */
+    @Transactional
+    public List<LastPriceDTO> getLastPrices() {
+        return getInstrumentData(InstrumentType.LAST_PRICES, false);
+    }
+
+    /**
+     * Получает список всех цен последних сделок ТОЛЬКО из кэша (без fallback на БД)
+     *
+     * @return список цен последних сделок в формате LastPriceDTO (может быть
+     *         пустым)
+     */
+    public List<LastPriceDTO> getLastPricesFromCacheOnly() {
+        return getInstrumentData(InstrumentType.LAST_PRICES, true);
+    }
+
+    /**
+     * Получает список всех дивидендов из кэша с fallback на базу данных
+     *
+     * <p>
+     * Сначала пытается получить дивиденды из кэша dividendsCache. Если кэш
+     * пуст или произошла ошибка, загружает данные из базы данных через
+     * DivedendsRepository.
+     * </p>
+     *
+     * @return список дивидендов в формате DividendDto
+     */
+    @Transactional
+    public List<DividendDto> getDividends() {
+        return getInstrumentData(InstrumentType.DIVIDENDS, false);
+    }
+
+    /**
+     * Получает список всех дивидендов ТОЛЬКО из кэша (без fallback на БД)
+     *
+     * @return список дивидендов в формате DividendDto (может быть пустым)
+     */
+    public List<DividendDto> getDividendsFromCacheOnly() {
+        return getInstrumentData(InstrumentType.DIVIDENDS, true);
+    }
+
+    /**
+     * Получает информацию об инструменте по FIGI из всех доступных кэшей
+     *
+     * <p>
+     * Этот метод выполняет поиск инструмента по FIGI во всех типах кэшей:
+     * акции, фьючерсы, индикативы, цены закрытия, цены открытия, цены последних
+     * сделок и дивиденды.
+     * Возвращает список всех найденных записей, связанных с указанным FIGI.
+     * </p>
+     *
+     * <p>
+     * Процесс поиска:
+     * </p>
+     * <ul>
+     * <li>Поиск в кэше акций по FIGI</li>
+     * <li>Поиск в кэше фьючерсов по FIGI</li>
+     * <li>Поиск в кэше индикативов по FIGI</li>
+     * <li>Поиск в кэше цен закрытия по FIGI</li>
+     * <li>Поиск в кэше цен открытия по FIGI</li>
+     * <li>Поиск в кэше цен последних сделок по FIGI</li>
+     * <li>Поиск в кэше дивидендов по FIGI</li>
+     * <li>Объединение всех найденных результатов</li>
+     * </ul>
+     *
+     * @param figi идентификатор инструмента для поиска
+     * @return список всех найденных записей, связанных с FIGI (может быть пустым)
+     */
+    public List<Object> getInstrumentByFigi(String figi) {
+        if (figi == null || figi.trim().isEmpty()) {
+            logger.warn("FIGI не может быть пустым");
+            return new ArrayList<>();
+        }
+
+        List<Object> allResults = new ArrayList<>();
+        String trimmedFigi = figi.trim();
+
+        logger.info("Поиск инструмента по FIGI: {}", trimmedFigi);
+
+        try {
+            // Поиск в акциях
+            List<ShareDTO> shares = findSharesByFigi(trimmedFigi);
+            allResults.addAll(shares);
+
+            // Поиск в фьючерсах
+            List<FutureDTO> futures = findFuturesByFigi(trimmedFigi);
+            allResults.addAll(futures);
+
+            // Поиск в индикативах
+            List<IndicativeDTO> indicatives = findIndicativesByFigi(trimmedFigi);
+            allResults.addAll(indicatives);
+
+            // Поиск в ценах закрытия
+            List<ClosePriceDTO> closePrices = findClosePricesByFigi(trimmedFigi);
+            allResults.addAll(closePrices);
+
+            // Поиск в ценах открытия
+            List<OpenPriceDTO> openPrices = findOpenPricesByFigi(trimmedFigi);
+            allResults.addAll(openPrices);
+
+            // Поиск в ценах последних сделок
+            List<LastPriceDTO> lastPrices = findLastPricesByFigi(trimmedFigi);
+            allResults.addAll(lastPrices);
+
+            // Поиск в дивидендах
+            List<DividendDto> dividends = findDividendsByFigi(trimmedFigi);
+            allResults.addAll(dividends);
+
+            logger.info("Найдено {} записей для FIGI: {}", allResults.size(), trimmedFigi);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при поиске инструмента по FIGI {}: {}", trimmedFigi, e.getMessage(), e);
+        }
+
+        return allResults;
+    }
+
+    /**
+     * Получает информацию об инструменте по FIGI ТОЛЬКО из кэша (без fallback на
+     * БД)
+     *
+     * <p>
+     * Этот метод выполняет поиск инструмента по FIGI только в кэшированных данных.
+     * Не обращается к базе данных, поэтому работает быстрее, но может не найти
+     * инструмент, если он не закэширован.
+     * </p>
+     *
+     * @param figi идентификатор инструмента для поиска
+     * @return список всех найденных записей из кэша, связанных с FIGI (может быть
+     *         пустым)
+     */
+    public List<Object> getInstrumentByFigiFromCacheOnly(String figi) {
+        if (figi == null || figi.trim().isEmpty()) {
+            logger.warn("FIGI не может быть пустым");
+            return new ArrayList<>();
+        }
+
+        List<Object> allResults = new ArrayList<>();
+        String trimmedFigi = figi.trim();
+
+        logger.info("Поиск инструмента по FIGI только в кэше: {}", trimmedFigi);
+
+        try {
+            // Поиск в акциях (только кэш)
+            List<ShareDTO> shares = findSharesByFigiFromCacheOnly(trimmedFigi);
+            allResults.addAll(shares);
+
+            // Поиск в фьючерсах (только кэш)
+            List<FutureDTO> futures = findFuturesByFigiFromCacheOnly(trimmedFigi);
+            allResults.addAll(futures);
+
+            // Поиск в индикативах (только кэш)
+            List<IndicativeDTO> indicatives = findIndicativesByFigiFromCacheOnly(trimmedFigi);
+            allResults.addAll(indicatives);
+
+            // Поиск в ценах закрытия (только кэш)
+            List<ClosePriceDTO> closePrices = findClosePricesByFigiFromCacheOnly(trimmedFigi);
+            allResults.addAll(closePrices);
+
+            // Поиск в ценах открытия (только кэш)
+            List<OpenPriceDTO> openPrices = findOpenPricesByFigiFromCacheOnly(trimmedFigi);
+            allResults.addAll(openPrices);
+
+            // Поиск в ценах последних сделок (только кэш)
+            List<LastPriceDTO> lastPrices = findLastPricesByFigiFromCacheOnly(trimmedFigi);
+            allResults.addAll(lastPrices);
+
+            // Поиск в дивидендах (только кэш)
+            List<DividendDto> dividends = findDividendsByFigiFromCacheOnly(trimmedFigi);
+            allResults.addAll(dividends);
+
+            logger.info("Найдено {} записей в кэше для FIGI: {}", allResults.size(), trimmedFigi);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при поиске инструмента по FIGI в кэше {}: {}", trimmedFigi, e.getMessage(), e);
+        }
+
+        return allResults;
+    }
+
+    // ===========================================
+    // Вспомогательные методы для поиска по FIGI
+    // ===========================================
+
+    /**
+     * Поиск акций по FIGI в кэше с fallback на БД
+     */
+    private List<ShareDTO> findSharesByFigi(String figi) {
+        List<ShareDTO> shares = getShares();
+        return shares.stream()
+                .filter(share -> figi.equals(share.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск акций по FIGI только в кэше
+     */
+    private List<ShareDTO> findSharesByFigiFromCacheOnly(String figi) {
+        List<ShareDTO> shares = getSharesFromCacheOnly();
+        return shares.stream()
+                .filter(share -> figi.equals(share.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск фьючерсов по FIGI в кэше с fallback на БД
+     */
+    private List<FutureDTO> findFuturesByFigi(String figi) {
+        List<FutureDTO> futures = getFutures();
+        return futures.stream()
+                .filter(future -> figi.equals(future.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск фьючерсов по FIGI только в кэше
+     */
+    private List<FutureDTO> findFuturesByFigiFromCacheOnly(String figi) {
+        List<FutureDTO> futures = getFuturesFromCacheOnly();
+        return futures.stream()
+                .filter(future -> figi.equals(future.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск индикативов по FIGI в кэше с fallback на БД
+     */
+    private List<IndicativeDTO> findIndicativesByFigi(String figi) {
+        List<IndicativeDTO> indicatives = getIndicatives();
+        return indicatives.stream()
+                .filter(indicative -> figi.equals(indicative.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск индикативов по FIGI только в кэше
+     */
+    private List<IndicativeDTO> findIndicativesByFigiFromCacheOnly(String figi) {
+        List<IndicativeDTO> indicatives = getIndicativesFromCacheOnly();
+        return indicatives.stream()
+                .filter(indicative -> figi.equals(indicative.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск цен закрытия по FIGI в кэше с fallback на БД
+     */
+    private List<ClosePriceDTO> findClosePricesByFigi(String figi) {
+        List<ClosePriceDTO> closePrices = getClosePrices();
+        return closePrices.stream()
+                .filter(price -> figi.equals(price.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск цен закрытия по FIGI только в кэше
+     */
+    private List<ClosePriceDTO> findClosePricesByFigiFromCacheOnly(String figi) {
+        List<ClosePriceDTO> closePrices = getClosePricesFromCacheOnly();
+        return closePrices.stream()
+                .filter(price -> figi.equals(price.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск цен открытия по FIGI в кэше с fallback на БД
+     */
+    private List<OpenPriceDTO> findOpenPricesByFigi(String figi) {
+        List<OpenPriceDTO> openPrices = getOpenPrices();
+        return openPrices.stream()
+                .filter(price -> figi.equals(price.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск цен открытия по FIGI только в кэше
+     */
+    private List<OpenPriceDTO> findOpenPricesByFigiFromCacheOnly(String figi) {
+        List<OpenPriceDTO> openPrices = getOpenPricesFromCacheOnly();
+        return openPrices.stream()
+                .filter(price -> figi.equals(price.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск цен последних сделок по FIGI в кэше с fallback на БД
+     */
+    private List<LastPriceDTO> findLastPricesByFigi(String figi) {
+        List<LastPriceDTO> lastPrices = getLastPrices();
+        return lastPrices.stream()
+                .filter(price -> figi.equals(price.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск цен последних сделок по FIGI только в кэше
+     */
+    private List<LastPriceDTO> findLastPricesByFigiFromCacheOnly(String figi) {
+        List<LastPriceDTO> lastPrices = getLastPricesFromCacheOnly();
+        return lastPrices.stream()
+                .filter(price -> figi.equals(price.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск дивидендов по FIGI в кэше с fallback на БД
+     */
+    private List<DividendDto> findDividendsByFigi(String figi) {
+        List<DividendDto> dividends = getDividends();
+        return dividends.stream()
+                .filter(dividend -> figi.equals(dividend.figi()))
+                .toList();
+    }
+
+    /**
+     * Поиск дивидендов по FIGI только в кэше
+     */
+    private List<DividendDto> findDividendsByFigiFromCacheOnly(String figi) {
+        List<DividendDto> dividends = getDividendsFromCacheOnly();
+        return dividends.stream()
+                .filter(dividend -> figi.equals(dividend.figi()))
+                .toList();
+    }
+
     // ===========================================
     // Универсальные методы для работы с кэшем
     // ===========================================
@@ -594,6 +963,14 @@ public class CacheInstrumentsService {
         InstrumentConfig.CLOSE_PRICES_EVENING_SESSION
                 .setMapperFunction((List<ClosePriceEveningSessionEntity> entities) -> mapper
                         .toClosePriceEveningSessionDTOList(entities));
+
+        InstrumentConfig.LAST_PRICES.setDbSupplier(() -> lastPriceRepository.findAllLatestPrices());
+        InstrumentConfig.LAST_PRICES
+                .setMapperFunction((List<LastPriceEntity> entities) -> mapper.toLastPriceDTOList(entities));
+
+        InstrumentConfig.DIVIDENDS.setDbSupplier(() -> divedendsRepository.findDividendsForTodayAndTomorrow());
+        InstrumentConfig.DIVIDENDS
+                .setMapperFunction((List<DividendEntity> entities) -> mapper.toDividendDtoList(entities));
     }
 
     /**
@@ -640,6 +1017,30 @@ public class CacheInstrumentsService {
     }
 
     /**
+     * Получает дату запроса для указанного типа инструмента
+     *
+     * <p>
+     * Определяет дату, за которую были запрошены данные из БД.
+     * Для цен закрытия, открытия и вечерней сессии используется предыдущий рабочий
+     * день.
+     * Для последних цен и дивидендов используется текущая дата.
+     * </p>
+     *
+     * @param instrumentType тип инструмента
+     * @return дата запроса данных
+     */
+    public LocalDateTime getRequestDateForInstrument(InstrumentType instrumentType) {
+        return switch (instrumentType) {
+            case CLOSE_PRICES, OPEN_PRICES, CLOSE_PRICES_EVENING_SESSION ->
+                WorkingDaysUtils.getPreviousWorkingDay(LocalDate.now()).atStartOfDay();
+            case LAST_PRICES, DIVIDENDS ->
+                LocalDate.now().atStartOfDay();
+            default ->
+                LocalDate.now().atStartOfDay();
+        };
+    }
+
+    /**
      * Находит конфигурацию по типу инструмента
      *
      * @param instrumentType тип инструмента
@@ -653,4 +1054,5 @@ public class CacheInstrumentsService {
         }
         return null;
     }
+
 }

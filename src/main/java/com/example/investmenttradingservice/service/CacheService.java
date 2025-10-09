@@ -2,17 +2,21 @@ package com.example.investmenttradingservice.service;
 
 import com.example.investmenttradingservice.entity.ClosePriceEntity;
 import com.example.investmenttradingservice.entity.ClosePriceEveningSessionEntity;
+import com.example.investmenttradingservice.entity.DividendEntity;
 import com.example.investmenttradingservice.entity.FutureEntity;
 import com.example.investmenttradingservice.entity.IndicativeEntity;
+import com.example.investmenttradingservice.entity.LastPriceEntity;
 import com.example.investmenttradingservice.entity.OpenPriceEntity;
 import com.example.investmenttradingservice.entity.ShareEntity;
 import com.example.investmenttradingservice.mapper.Mapper;
 import com.example.investmenttradingservice.repository.ClosePriceEveningSessionRepository;
 import com.example.investmenttradingservice.repository.ClosePriceRepository;
+import com.example.investmenttradingservice.repository.DivedendsRepository;
 import com.example.investmenttradingservice.repository.FutureRepository;
 import com.example.investmenttradingservice.repository.OpenPriceRepositrory;
 import com.example.investmenttradingservice.repository.ShareRepository;
 import com.example.investmenttradingservice.repository.Indicativerepository;
+import com.example.investmenttradingservice.repository.LastPriceRepository;
 import com.example.investmenttradingservice.util.TimeZoneUtils;
 import com.example.investmenttradingservice.util.WorkingDaysUtils;
 import com.example.investmenttradingservice.enums.CacheConfig;
@@ -90,6 +94,11 @@ public class CacheService {
     /** Репозиторий для работы с ценами закрытия вечерней сессии */
     private final ClosePriceEveningSessionRepository closePriceEveningSessionRepository;
 
+    /** Репозиторий для работы с дивидентами */
+    private final DivedendsRepository divedendsRepository;
+
+    private final LastPriceRepository lastPriceRepository;
+
     /** Менеджер кэша для управления кэшированием */
     private final CacheManager cacheManager;
 
@@ -107,16 +116,23 @@ public class CacheService {
      * @param openPriceRepository  репозиторий для работы с ценами открытия
      * @param cacheManager         менеджер кэша
      */
-    public CacheService(ShareRepository shareRepository, FutureRepository futureRepository,
-            Indicativerepository indicativeRepository, ClosePriceRepository closePriceRepository,
+    public CacheService(ShareRepository shareRepository,
+            FutureRepository futureRepository,
+            Indicativerepository indicativeRepository,
+            ClosePriceRepository closePriceRepository,
             OpenPriceRepositrory openPriceRepository,
-            ClosePriceEveningSessionRepository closePriceEveningSessionRepository, CacheManager cacheManager) {
+            ClosePriceEveningSessionRepository closePriceEveningSessionRepository,
+            DivedendsRepository divedendsRepository,
+            LastPriceRepository lastPriceRepository,
+            CacheManager cacheManager) {
         this.shareRepository = shareRepository;
         this.futureRepository = futureRepository;
         this.indicativeRepository = indicativeRepository;
         this.closePriceRepository = closePriceRepository;
         this.openPriceRepository = openPriceRepository;
         this.closePriceEveningSessionRepository = closePriceEveningSessionRepository;
+        this.divedendsRepository = divedendsRepository;
+        this.lastPriceRepository = lastPriceRepository;
         this.cacheManager = cacheManager;
 
         // Инициализация конфигурации кэшей
@@ -253,6 +269,12 @@ public class CacheService {
         CacheConfig.CLOSE_PRICES_EVENING_SESSION
                 .setMapperFunction((List<ClosePriceEveningSessionEntity> entities) -> mapper
                         .toClosePriceEveningSessionDTOList(entities));
+
+        CacheConfig.LAST_PRICES
+                .setMapperFunction((List<LastPriceEntity> entities) -> mapper.toLastPriceDTOList(entities));
+
+        CacheConfig.DIVIDEND
+                .setMapperFunction((List<DividendEntity> entities) -> mapper.toDividendDtoList(entities));
     }
 
     /**
@@ -373,6 +395,30 @@ public class CacheService {
                         closePriceEveningSessions.size());
             } else {
                 logger.warn("[{}] В базе данных не найдено цен закрытия вечерней сессии", taskId);
+            }
+
+            // Прогрев кэша для цен последних сделок
+            logger.info("[{}] Прогрев кэша цен последних сделок из базы данных", taskId);
+            List<LastPriceEntity> lastPrices = lastPriceRepository
+                    .findAllLatestPrices();
+            if (lastPrices != null && !lastPrices.isEmpty()) {
+                loadDataToCache(CacheConfig.LAST_PRICES, lastPrices);
+                logger.info("[{}] В кэш загружено цен последних сделок по инструментам: {}", taskId,
+                        lastPrices.size());
+            } else {
+                logger.warn("[{}] В базе данных не найдено цен последних сделок", taskId);
+            }
+
+            // Прогрев кэша для дивидендов
+            logger.info("[{}] Прогрев кэша дивидендов из базы данных", taskId);
+            List<DividendEntity> dividends = divedendsRepository
+                    .findDividendsForTodayAndTomorrow();
+            if (dividends != null && !dividends.isEmpty()) {
+                loadDataToCache(CacheConfig.DIVIDEND, dividends);
+                logger.info("[{}] В кэш загружено дивидендов на сегодня/завтра: {}", taskId,
+                        dividends.size());
+            } else {
+                logger.warn("[{}] В базе данных не найдено дивидендов на сегодня/завтра", taskId);
             }
 
             logger.info("[{}] Прогрев кэша завершен успешно", taskId);

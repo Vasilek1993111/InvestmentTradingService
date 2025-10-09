@@ -62,6 +62,12 @@ public class CacheConfig {
     /** Имя кэша для цен закрытия вечерней сессии */
     private static final String CLOSE_PRICES_EVENING_SESSION_CACHE = "closePricesEveningSessionCache";
 
+    /**Имя кэша для цен последних сделок по инструментам */
+    private static final String LAST_PRICE_CACHE = "lastPricesCache";
+
+    /**Имя кэша для дивидентных событий */
+    private static final String DIVIDENDS_CACHE = "dividendsCache";
+
     /**
      * Создает конфигурацию Caffeine для кэширования
      * 
@@ -102,7 +108,9 @@ public class CacheConfig {
                 INDICATIVES_CACHE,
                 CLOSE_PRICES_CACHE,
                 OPEN_PRICES_CACHE,
-                CLOSE_PRICES_EVENING_SESSION_CACHE);
+                CLOSE_PRICES_EVENING_SESSION_CACHE,
+                LAST_PRICE_CACHE, 
+                DIVIDENDS_CACHE);
         cacheManager.setCaffeine(caffeine);
         return cacheManager;
     }

@@ -25,8 +25,9 @@ public enum CacheConfig {
     INDICATIVES("indicativesCache", "all_indicatives", "индикативов", null),
     CLOSE_PRICES("closePricesCache", "all_close_prices", "цен закрытия", null),
     OPEN_PRICES("openPricesCache", "all_open_prices", "цен открытия", null),
-    CLOSE_PRICES_EVENING_SESSION("closePricesEveningSessionCache", "all_close_prices_evening_session", "цен закрытия вечерней сессии", null);
-
+    CLOSE_PRICES_EVENING_SESSION("closePricesEveningSessionCache", "all_close_prices_evening_session", "цен закрытия вечерней сессии", null),
+    DIVIDEND("dividendsCache", "all_dividends", "дивидентных событий", null ),
+    LAST_PRICES("lastPricesCache", "all_last_prices", "цен последних сделок", null);
     /** Имя кэша */ 
     private final String cacheName;
 

@@ -42,6 +42,30 @@ public class ApiResponseBuilder {
     }
 
     /**
+     * Создает успешный ответ с данными и датой запроса
+     *
+     * @param message     сообщение об успехе
+     * @param data        данные для возврата
+     * @param size        размер данных
+     * @param dataKey     ключ для данных в ответе
+     * @param requestDate дата запроса данных из БД
+     * @return ResponseEntity с успешным ответом
+     */
+    public static ResponseEntity<Object> success(String message, Object data, int size, String dataKey,
+            LocalDateTime requestDate) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", true);
+        response.put("status", "success");
+        response.put("message", message);
+        response.put(dataKey + "_size", size);
+        response.put(dataKey, data);
+        response.put("request_date", requestDate);
+        response.put("timestamp", LocalDateTime.now());
+
+        return ResponseEntity.ok().body(response);
+    }
+
+    /**
      * Создает успешный ответ с данными (использует "data" как ключ по умолчанию)
      *
      * @param message сообщение об успехе

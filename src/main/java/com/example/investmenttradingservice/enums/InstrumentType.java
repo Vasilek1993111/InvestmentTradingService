@@ -21,7 +21,10 @@ public enum InstrumentType {
     INDICATIVES("indicativesCache", new String[] { "all_indicatives", "|||||" }),
     CLOSE_PRICES("closePricesCache", new String[] { "all_close_prices", "||||||" }),
     OPEN_PRICES("openPricesCache", new String[] { "all_open_prices", "|||||||" }),
-    CLOSE_PRICES_EVENING_SESSION("closePricesEveningSessionCache", new String[] { "all_close_prices_evening_session", "||||||||" });
+    CLOSE_PRICES_EVENING_SESSION("closePricesEveningSessionCache",
+            new String[] { "all_close_prices_evening_session", "||||||||" }),
+    LAST_PRICES("lastPricesCache", new String[] { "all_last_prices", "|||||||||" }),
+    DIVIDENDS("dividendsCache", new String[] { "all_dividends", "||||||||||" });
 
     /** Имя кэша для данного типа инструмента */
     private final String cacheName;
