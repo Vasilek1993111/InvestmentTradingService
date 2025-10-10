@@ -20,6 +20,46 @@ import org.springframework.http.ResponseEntity;
  */
 public class ApiResponseBuilder {
 
+    private final Map<String, Object> response;
+    private final boolean isSuccess;
+
+    private ApiResponseBuilder(boolean isSuccess) {
+        this.response = new LinkedHashMap<>();
+        this.isSuccess = isSuccess;
+        this.response.put("success", isSuccess);
+        this.response.put("status", isSuccess ? "success" : "error");
+        this.response.put("timestamp", LocalDateTime.now());
+    }
+
+    /**
+     * Создает builder для успешного ответа
+     */
+    public static ApiResponseBuilder success() {
+        return new ApiResponseBuilder(true);
+    }
+
+    /**
+     * Создает builder для ответа с ошибкой
+     */
+    public static ApiResponseBuilder error() {
+        return new ApiResponseBuilder(false);
+    }
+
+    /**
+     * Добавляет поле в ответ
+     */
+    public ApiResponseBuilder add(String key, Object value) {
+        this.response.put(key, value);
+        return this;
+    }
+
+    /**
+     * Строит финальный Map ответа
+     */
+    public Map<String, Object> build() {
+        return this.response;
+    }
+
     /**
      * Создает успешный ответ с данными
      *
@@ -109,5 +149,43 @@ public class ApiResponseBuilder {
         errorResponse.put("timestamp", LocalDateTime.now());
 
         return ResponseEntity.internalServerError().body(errorResponse);
+    }
+
+    /**
+     * Создает успешный ответ с данными и указанным HTTP статусом
+     *
+     * @param message    сообщение об успехе
+     * @param data       данные для возврата
+     * @param httpStatus HTTP статус ответа
+     * @return ResponseEntity с успешным ответом
+     */
+    public static ResponseEntity<Map<String, Object>> success(String message, Object data,
+            org.springframework.http.HttpStatus httpStatus) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", true);
+        response.put("status", "success");
+        response.put("message", message);
+        response.put("data", data);
+        response.put("timestamp", LocalDateTime.now());
+
+        return ResponseEntity.status(httpStatus).body(response);
+    }
+
+    /**
+     * Создает ответ с ошибкой и указанным HTTP статусом
+     *
+     * @param message    сообщение об ошибке
+     * @param httpStatus HTTP статус ответа
+     * @return ResponseEntity с ошибкой
+     */
+    public static ResponseEntity<Map<String, Object>> error(String message,
+            org.springframework.http.HttpStatus httpStatus) {
+        Map<String, Object> errorResponse = new LinkedHashMap<>();
+        errorResponse.put("success", false);
+        errorResponse.put("status", "error");
+        errorResponse.put("message", message);
+        errorResponse.put("timestamp", LocalDateTime.now());
+
+        return ResponseEntity.status(httpStatus).body(errorResponse);
     }
 }

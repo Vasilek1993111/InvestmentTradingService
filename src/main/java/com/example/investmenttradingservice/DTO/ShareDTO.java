@@ -22,6 +22,7 @@ package com.example.investmenttradingservice.DTO;
  * <li>tradingStatus - статус торговли</li>
  * <li>shortEnabled - возможность коротких продаж</li>
  * <li>assetUid - уникальный идентификатор актива</li>
+ * <li>lot - размер лота инструмента</li>
  * </ul>
  * 
  * <p>
@@ -31,7 +32,7 @@ package com.example.investmenttradingservice.DTO;
  * <pre>{@code
  * ShareDTO share = new ShareDTO(
  *         "BBG004730N88", "SBER", "Сбербанк", "RUB",
- *         "MOEX", "Финансы", "NormalTrading", true, "asset123");
+ *         "MOEX", "Финансы", "NormalTrading", true, "asset123", 10);
  * }</pre>
  * 
  * @param figi          уникальный идентификатор финансового инструмента (FIGI)
@@ -44,6 +45,7 @@ package com.example.investmenttradingservice.DTO;
  *                      т.д.)
  * @param shortEnabled  возможность совершения коротких продаж
  * @param assetUid      уникальный идентификатор актива
+ * @param lot           размер лота (минимальное количество для покупки/продажи)
  * 
  * @author Investment Trading Service Team
  * @version 1.0.0
@@ -58,6 +60,7 @@ public record ShareDTO(
         String sector,
         String tradingStatus,
         Boolean shortEnabled,
-        String assetUid) {
+        String assetUid
+        ) {
 
 }

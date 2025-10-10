@@ -1,33 +1,52 @@
 package com.example.investmenttradingservice.mapper;
 
-import com.example.investmenttradingservice.DTO.ShareDTO;
-import com.example.investmenttradingservice.entity.FutureEntity;
-import com.example.investmenttradingservice.entity.IndicativeEntity;
-import com.example.investmenttradingservice.entity.OpenPriceEntity;
-import com.example.investmenttradingservice.entity.ShareEntity;
-import com.example.investmenttradingservice.util.TimeZoneUtils;
-import com.example.investmenttradingservice.DTO.FutureDTO;
-import com.example.investmenttradingservice.DTO.IndicativeDTO;
-import com.example.investmenttradingservice.DTO.OpenPriceDTO;
-import com.example.investmenttradingservice.DTO.ClosePriceDTO;
-import com.example.investmenttradingservice.entity.ClosePriceEntity;
-import com.example.investmenttradingservice.entity.ClosePriceEveningSessionEntity;
-import com.example.investmenttradingservice.DTO.ClosePriceEveningSessionDTO;
-import com.example.investmenttradingservice.entity.LastPriceEntity;
-import com.example.investmenttradingservice.DTO.LastPriceDTO;
-import com.example.investmenttradingservice.entity.DividendEntity;
-import com.example.investmenttradingservice.DTO.DividendDto;
+import com.example.investmenttradingservice.DTO.*;
+import com.example.investmenttradingservice.entity.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
- * Mapper для преобразования Entity в DTO и обратно
+ * Главный Mapper для преобразования Entity в DTO и обратно
+ * 
+ * <p>
+ * Делегирует работу специализированным мапперам для каждого типа сущностей.
+ * Обеспечивает единую точку входа для всех преобразований в приложении.
+ * </p>
  */
 @Component
 public class Mapper {
+
+    @Autowired
+    private ShareMapper shareMapper;
+
+    @Autowired
+    private FutureMapper futureMapper;
+
+    @Autowired
+    private IndicativeMapper indicativeMapper;
+
+    @Autowired
+    private ClosePriceMapper closePriceMapper;
+
+    @Autowired
+    private OpenPriceMapper openPriceMapper;
+
+    @Autowired
+    private LastPriceMapper lastPriceMapper;
+
+    @Autowired
+    private ClosePriceEveningSessionMapper closePriceEveningSessionMapper;
+
+    @Autowired
+    private DividendMapper dividendMapper;
+
+ 
+
+    // ===========================================
+    // Методы для работы с Share (делегирование)
+    // ===========================================
 
     /**
      * Преобразует ShareEntity в ShareDTO
@@ -36,20 +55,7 @@ public class Mapper {
      * @return ShareDTO
      */
     public ShareDTO toShareDTO(ShareEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-
-        return new ShareDTO(
-                entity.getFigi(),
-                entity.getTicker(),
-                entity.getName(),
-                entity.getCurrency(),
-                entity.getExchange(),
-                entity.getSector(),
-                entity.getTradingStatus(),
-                entity.getShortEnabled(),
-                entity.getAssetUid());
+        return shareMapper.toDTO(entity);
     }
 
     /**
@@ -59,27 +65,7 @@ public class Mapper {
      * @return ShareEntity
      */
     public ShareEntity toShareEntity(ShareDTO dto) {
-        if (dto == null) {
-            return null;
-        }
-
-        ShareEntity entity = new ShareEntity();
-        entity.setFigi(dto.figi());
-        entity.setTicker(dto.ticker());
-        entity.setName(dto.name());
-        entity.setCurrency(dto.currency());
-        entity.setExchange(dto.exchange());
-        entity.setSector(dto.sector());
-        entity.setTradingStatus(dto.tradingStatus());
-        entity.setShortEnabled(dto.shortEnabled());
-        entity.setAssetUid(dto.assetUid());
-
-        // Устанавливаем временные метки
-        LocalDateTime now = LocalDateTime.now();
-        entity.setCreatedAt(now);
-        entity.setUpdatedAt(now);
-
-        return entity;
+        return shareMapper.toEntity(dto);
     }
 
     /**
@@ -90,25 +76,12 @@ public class Mapper {
      * @return обновленная ShareEntity
      */
     public ShareEntity updateShareEntity(ShareEntity entity, ShareDTO dto) {
-        if (entity == null || dto == null) {
-            return entity;
-        }
-
-        // Обновляем только изменяемые поля, figi остается неизменным
-        entity.setTicker(dto.ticker());
-        entity.setName(dto.name());
-        entity.setCurrency(dto.currency());
-        entity.setExchange(dto.exchange());
-        entity.setSector(dto.sector());
-        entity.setTradingStatus(dto.tradingStatus());
-        entity.setShortEnabled(dto.shortEnabled());
-        entity.setAssetUid(dto.assetUid());
-
-        // Обновляем время изменения
-        entity.setUpdatedAt(LocalDateTime.now());
-
-        return entity;
+        return shareMapper.updateEntity(entity, dto);
     }
+
+    // ===========================================
+    // Методы для работы с Future (делегирование)
+    // ===========================================
 
     /**
      * Преобразует FutureEntity в FutureDTO
@@ -117,19 +90,7 @@ public class Mapper {
      * @return FutureDTO
      */
     public FutureDTO toFutureDTO(FutureEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-
-        return new FutureDTO(
-                entity.getFigi(),
-                entity.getTicker(),
-                entity.getAssetType(),
-                entity.getBasicAsset(),
-                entity.getCurrency(),
-                entity.getExchange(),
-                entity.getShortEnabled(),
-                entity.getExpirationDate());
+        return futureMapper.toDTO(entity);
     }
 
     /**
@@ -139,26 +100,7 @@ public class Mapper {
      * @return FutureEntity
      */
     public FutureEntity toFutureEntity(FutureDTO dto) {
-        if (dto == null) {
-            return null;
-        }
-
-        FutureEntity entity = new FutureEntity();
-        entity.setFigi(dto.figi());
-        entity.setTicker(dto.ticker());
-        entity.setAssetType(dto.assetType());
-        entity.setBasicAsset(dto.basicAsset());
-        entity.setCurrency(dto.currency());
-        entity.setExchange(dto.exchange());
-        entity.setShortEnabled(dto.shortEnabled());
-        entity.setExpirationDate(dto.expirationDate());
-
-        // Устанавливаем временные метки
-        LocalDateTime now = LocalDateTime.now(TimeZoneUtils.getMoscowZone());
-        entity.setCreatedAt(now);
-        entity.setUpdatedAt(now);
-
-        return entity;
+        return futureMapper.toEntity(dto);
     }
 
     /**
@@ -169,23 +111,7 @@ public class Mapper {
      * @return обновленная FutureEntity
      */
     public FutureEntity updateFutureEntity(FutureEntity entity, FutureDTO dto) {
-        if (entity == null || dto == null) {
-            return entity;
-        }
-
-        // Обновляем только изменяемые поля, figi остается неизменным
-        entity.setTicker(dto.ticker());
-        entity.setAssetType(dto.assetType());
-        entity.setBasicAsset(dto.basicAsset());
-        entity.setCurrency(dto.currency());
-        entity.setExchange(dto.exchange());
-        entity.setShortEnabled(dto.shortEnabled());
-        entity.setExpirationDate(dto.expirationDate());
-
-        // Обновляем время изменения
-        entity.setUpdatedAt(LocalDateTime.now(TimeZoneUtils.getMoscowZone()));
-
-        return entity;
+        return futureMapper.updateEntity(entity, dto);
     }
 
     // ===========================================
@@ -199,13 +125,7 @@ public class Mapper {
      * @return список ShareDTO
      */
     public List<ShareDTO> toShareDTOList(List<ShareEntity> entities) {
-        if (entities == null) {
-            return null;
-        }
-
-        return entities.stream()
-                .map(this::toShareDTO)
-                .collect(Collectors.toList());
+        return shareMapper.toDTOList(entities);
     }
 
     /**
@@ -215,13 +135,7 @@ public class Mapper {
      * @return список ShareEntity
      */
     public List<ShareEntity> toShareEntityList(List<ShareDTO> dtos) {
-        if (dtos == null) {
-            return null;
-        }
-
-        return dtos.stream()
-                .map(this::toShareEntity)
-                .collect(Collectors.toList());
+        return shareMapper.toEntityList(dtos);
     }
 
     // ===========================================
@@ -235,13 +149,7 @@ public class Mapper {
      * @return список FutureDTO
      */
     public List<FutureDTO> toFutureDTOList(List<FutureEntity> entities) {
-        if (entities == null) {
-            return null;
-        }
-
-        return entities.stream()
-                .map(this::toFutureDTO)
-                .collect(Collectors.toList());
+        return futureMapper.toDTOList(entities);
     }
 
     /**
@@ -251,46 +159,12 @@ public class Mapper {
      * @return список FutureEntity
      */
     public List<FutureEntity> toFutureEntityList(List<FutureDTO> dtos) {
-        if (dtos == null) {
-            return null;
-        }
-
-        return dtos.stream()
-                .map(this::toFutureEntity)
-                .collect(Collectors.toList());
+        return futureMapper.toEntityList(dtos);
     }
 
     // ===========================================
-    // Универсальные методы для работы со списками
+    // Методы для работы с Indicative (делегирование)
     // ===========================================
-
-    /**
-     * Фильтрует null значения из списка
-     * 
-     * @param list список для фильтрации
-     * @return отфильтрованный список без null значений
-     */
-    public <T> List<T> filterNulls(List<T> list) {
-        if (list == null) {
-            return null;
-        }
-
-        return list.stream()
-                .filter(item -> item != null)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Проверяет, является ли список пустым или null
-     * 
-     * @param list список для проверки
-     * @return true если список null или пустой
-     */
-    public <T> boolean isEmpty(List<T> list) {
-        return list == null || list.isEmpty();
-    }
-
-    // ========== Методы для индикативов ==========
 
     /**
      * Преобразует IndicativeEntity в IndicativeDTO
@@ -299,19 +173,7 @@ public class Mapper {
      * @return IndicativeDTO
      */
     public IndicativeDTO toIndicativeDTO(IndicativeEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-        return new IndicativeDTO(
-                entity.getFigi(),
-                entity.getTicker(),
-                entity.getName(),
-                entity.getCurrency(),
-                entity.getExchange(),
-                entity.getClassCode(),
-                entity.getUid(),
-                entity.getSellAvailableFlag(),
-                entity.getBuyAvailableFlag());
+        return indicativeMapper.toDTO(entity);
     }
 
     /**
@@ -321,12 +183,7 @@ public class Mapper {
      * @return список IndicativeDTO
      */
     public List<IndicativeDTO> toIndicativeDTOList(List<IndicativeEntity> entities) {
-        if (isEmpty(entities)) {
-            return List.of();
-        }
-        return entities.stream()
-                .map(this::toIndicativeDTO)
-                .collect(Collectors.toList());
+        return indicativeMapper.toDTOList(entities);
     }
 
     /**
@@ -336,19 +193,7 @@ public class Mapper {
      * @return IndicativeEntity
      */
     public IndicativeEntity toIndicativeEntity(IndicativeDTO dto) {
-        if (dto == null) {
-            return null;
-        }
-        return new IndicativeEntity(
-                dto.figi(),
-                dto.ticker(),
-                dto.name(),
-                dto.currency(),
-                dto.exchange(),
-                dto.classCode(),
-                dto.uid(),
-                dto.sellAvailableFlag(),
-                dto.buyAvailableFlag());
+        return indicativeMapper.toEntity(dto);
     }
 
     /**
@@ -358,15 +203,12 @@ public class Mapper {
      * @return список IndicativeEntity
      */
     public List<IndicativeEntity> toIndicativeEntityList(List<IndicativeDTO> dtos) {
-        if (isEmpty(dtos)) {
-            return List.of();
-        }
-        return dtos.stream()
-                .map(this::toIndicativeEntity)
-                .collect(Collectors.toList());
+        return indicativeMapper.toEntityList(dtos);
     }
 
-    // ========== Методы для ClosePrice ==========
+    // ===========================================
+    // Методы для работы с ClosePrice (делегирование)
+    // ===========================================
 
     /**
      * Преобразует ClosePriceEntity в ClosePriceDTO
@@ -375,19 +217,7 @@ public class Mapper {
      * @return ClosePriceDTO
      */
     public ClosePriceDTO toClosePriceDTO(ClosePriceEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-
-        return new ClosePriceDTO(
-                entity.getId().getPriceDate(),
-                entity.getId().getFigi(),
-                entity.getInstrumentType(),
-                entity.getClosePrice(),
-                entity.getCurrency(),
-                entity.getExchange(),
-                entity.getCreatedAt().toLocalDateTime(),
-                entity.getUpdatedAt().toLocalDateTime());
+        return closePriceMapper.toDTO(entity);
     }
 
     /**
@@ -397,17 +227,7 @@ public class Mapper {
      * @return ClosePriceEntity
      */
     public ClosePriceEntity toClosePriceEntity(ClosePriceDTO dto) {
-        if (dto == null) {
-            return null;
-        }
-
-        return new ClosePriceEntity(
-                dto.priceDate(),
-                dto.figi(),
-                dto.instrumentType(),
-                dto.closePrice(),
-                dto.currency(),
-                dto.exchange());
+        return closePriceMapper.toEntity(dto);
     }
 
     /**
@@ -417,12 +237,7 @@ public class Mapper {
      * @return список ClosePriceDTO
      */
     public List<ClosePriceDTO> toClosePriceDTOList(List<ClosePriceEntity> entities) {
-        if (isEmpty(entities)) {
-            return List.of();
-        }
-        return entities.stream()
-                .map(this::toClosePriceDTO)
-                .collect(Collectors.toList());
+        return closePriceMapper.toDTOList(entities);
     }
 
     /**
@@ -432,15 +247,12 @@ public class Mapper {
      * @return список ClosePriceEntity
      */
     public List<ClosePriceEntity> toClosePriceEntityList(List<ClosePriceDTO> dtos) {
-        if (isEmpty(dtos)) {
-            return List.of();
-        }
-        return dtos.stream()
-                .map(this::toClosePriceEntity)
-                .collect(Collectors.toList());
+        return closePriceMapper.toEntityList(dtos);
     }
 
-    // ========== Методы для OpenPrice ==========
+    // ===========================================
+    // Методы для работы с OpenPrice (делегирование)
+    // ===========================================
 
     /**
      * Преобразует OpenPriceEntity в OpenPriceDTO
@@ -449,19 +261,7 @@ public class Mapper {
      * @return OpenPriceDTO
      */
     public OpenPriceDTO toOpenPriceDTO(OpenPriceEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-
-        return new OpenPriceDTO(
-                entity.getId().getFigi(),
-                entity.getId().getPriceDate(),
-                entity.getOpenPrice(),
-                entity.getInstrumentType(),
-                entity.getCurrency(),
-                entity.getExchange(),
-                entity.getCreatedAt().toLocalDateTime(),
-                entity.getUpdatedAt().toLocalDateTime());
+        return openPriceMapper.toDTO(entity);
     }
 
     /**
@@ -471,17 +271,7 @@ public class Mapper {
      * @return OpenPriceEntity
      */
     public OpenPriceEntity toOpenPriceEntity(OpenPriceDTO dto) {
-        if (dto == null) {
-            return null;
-        }
-
-        return new OpenPriceEntity(
-                dto.priceDate(),
-                dto.figi(),
-                dto.instrumentType(),
-                dto.openPrice(),
-                dto.currency(),
-                dto.exchange());
+        return openPriceMapper.toEntity(dto);
     }
 
     /**
@@ -491,12 +281,7 @@ public class Mapper {
      * @return список OpenPriceDTO
      */
     public List<OpenPriceDTO> toOpenPriceDTOList(List<OpenPriceEntity> entities) {
-        if (isEmpty(entities)) {
-            return List.of();
-        }
-        return entities.stream()
-                .map(this::toOpenPriceDTO)
-                .collect(Collectors.toList());
+        return openPriceMapper.toDTOList(entities);
     }
 
     /**
@@ -506,15 +291,12 @@ public class Mapper {
      * @return список OpenPriceEntity
      */
     public List<OpenPriceEntity> toOpenPriceEntityList(List<OpenPriceDTO> dtos) {
-        if (isEmpty(dtos)) {
-            return List.of();
-        }
-        return dtos.stream()
-                .map(this::toOpenPriceEntity)
-                .collect(Collectors.toList());
+        return openPriceMapper.toEntityList(dtos);
     }
 
-    // ========== Методы для ClosePriceEveningSession ==========
+    // ===========================================
+    // Методы для работы с ClosePriceEveningSession (делегирование)
+    // ===========================================
 
     /**
      * Преобразует ClosePriceEveningSessionEntity в ClosePriceEveningSessionDTO
@@ -523,16 +305,7 @@ public class Mapper {
      * @return ClosePriceEveningSessionDTO
      */
     public ClosePriceEveningSessionDTO toClosePriceEveningSessionDTO(ClosePriceEveningSessionEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-        return new ClosePriceEveningSessionDTO(
-                entity.getPriceDate(),
-                entity.getFigi(),
-                entity.getClosePrice(),
-                entity.getInstrumentType(),
-                entity.getCurrency(),
-                entity.getExchange());
+        return closePriceEveningSessionMapper.toDTO(entity);
     }
 
     /**
@@ -542,16 +315,7 @@ public class Mapper {
      * @return ClosePriceEveningSessionEntity
      */
     public ClosePriceEveningSessionEntity toClosePriceEveningSessionEntity(ClosePriceEveningSessionDTO dto) {
-        if (dto == null) {
-            return null;
-        }
-        return new ClosePriceEveningSessionEntity(
-                dto.priceDate(),
-                dto.figi(),
-                dto.closePrice(),
-                dto.instrumentType(),
-                dto.currency(),
-                dto.exchange());
+        return closePriceEveningSessionMapper.toEntity(dto);
     }
 
     /**
@@ -563,12 +327,7 @@ public class Mapper {
      */
     public List<ClosePriceEveningSessionDTO> toClosePriceEveningSessionDTOList(
             List<ClosePriceEveningSessionEntity> entities) {
-        if (isEmpty(entities)) {
-            return List.of();
-        }
-        return entities.stream()
-                .map(this::toClosePriceEveningSessionDTO)
-                .collect(Collectors.toList());
+        return closePriceEveningSessionMapper.toDTOList(entities);
     }
 
     /**
@@ -580,15 +339,12 @@ public class Mapper {
      */
     public List<ClosePriceEveningSessionEntity> toClosePriceEveningSessionEntityList(
             List<ClosePriceEveningSessionDTO> dtos) {
-        if (isEmpty(dtos)) {
-            return List.of();
-        }
-        return dtos.stream()
-                .map(this::toClosePriceEveningSessionEntity)
-                .collect(Collectors.toList());
+        return closePriceEveningSessionMapper.toEntityList(dtos);
     }
 
-    // ========== Методы для LastPrice ==========
+    // ===========================================
+    // Методы для работы с LastPrice (делегирование)
+    // ===========================================
 
     /**
      * Преобразует LastPriceEntity в LastPriceDTO
@@ -597,18 +353,7 @@ public class Mapper {
      * @return LastPriceDTO
      */
     public LastPriceDTO toLastPriceDTO(LastPriceEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-
-        return new LastPriceDTO(
-                entity.getId().getFigi(),
-                null, // direction - не хранится в Entity
-                entity.getPrice(),
-                0L, // quantity - не хранится в Entity
-                entity.getId().getTime().atZone(java.time.ZoneId.of("Europe/Moscow")).toInstant(),
-                null // tradeSource - не хранится в Entity
-        );
+        return lastPriceMapper.toDTO(entity);
     }
 
     /**
@@ -618,18 +363,7 @@ public class Mapper {
      * @return LastPriceEntity
      */
     public LastPriceEntity toLastPriceEntity(LastPriceDTO dto) {
-        if (dto == null) {
-            return null;
-        }
-
-        LocalDateTime time = LocalDateTime.ofInstant(dto.time(), java.time.ZoneId.of("Europe/Moscow"));
-        return new LastPriceEntity(
-                dto.figi(),
-                time,
-                dto.price(),
-                null, // currency - не передается в DTO
-                null // exchange - не передается в DTO
-        );
+        return lastPriceMapper.toEntity(dto);
     }
 
     /**
@@ -639,12 +373,7 @@ public class Mapper {
      * @return список LastPriceDTO
      */
     public List<LastPriceDTO> toLastPriceDTOList(List<LastPriceEntity> entities) {
-        if (isEmpty(entities)) {
-            return List.of();
-        }
-        return entities.stream()
-                .map(this::toLastPriceDTO)
-                .collect(Collectors.toList());
+        return lastPriceMapper.toDTOList(entities);
     }
 
     /**
@@ -654,15 +383,12 @@ public class Mapper {
      * @return список LastPriceEntity
      */
     public List<LastPriceEntity> toLastPriceEntityList(List<LastPriceDTO> dtos) {
-        if (isEmpty(dtos)) {
-            return List.of();
-        }
-        return dtos.stream()
-                .map(this::toLastPriceEntity)
-                .collect(Collectors.toList());
+        return lastPriceMapper.toEntityList(dtos);
     }
 
-    // ========== Методы для Dividend ==========
+    // ===========================================
+    // Методы для работы с Dividend (делегирование)
+    // ===========================================
 
     /**
      * Преобразует DividendEntity в DividendDto
@@ -671,18 +397,7 @@ public class Mapper {
      * @return DividendDto
      */
     public DividendDto toDividendDto(DividendEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-
-        return new DividendDto(
-                entity.getFigi(),
-                entity.getDeclaredDate(),
-                entity.getRecordDate(),
-                entity.getPaymentDate(),
-                entity.getDividendValue(),
-                entity.getCurrency(),
-                entity.getDividendType());
+        return dividendMapper.toDTO(entity);
     }
 
     /**
@@ -692,18 +407,7 @@ public class Mapper {
      * @return DividendEntity
      */
     public DividendEntity toDividendEntity(DividendDto dto) {
-        if (dto == null) {
-            return null;
-        }
-
-        return new DividendEntity(
-                dto.figi(),
-                dto.declaredDate(),
-                dto.recordDate(),
-                dto.paymentDate(),
-                dto.dividendValue(),
-                dto.currency(),
-                dto.dividendType());
+        return dividendMapper.toEntity(dto);
     }
 
     /**
@@ -713,12 +417,7 @@ public class Mapper {
      * @return список DividendDto
      */
     public List<DividendDto> toDividendDtoList(List<DividendEntity> entities) {
-        if (isEmpty(entities)) {
-            return List.of();
-        }
-        return entities.stream()
-                .map(this::toDividendDto)
-                .collect(Collectors.toList());
+        return dividendMapper.toDTOList(entities);
     }
 
     /**
@@ -728,11 +427,36 @@ public class Mapper {
      * @return список DividendEntity
      */
     public List<DividendEntity> toDividendEntityList(List<DividendDto> dtos) {
-        if (isEmpty(dtos)) {
-            return List.of();
-        }
-        return dtos.stream()
-                .map(this::toDividendEntity)
-                .collect(Collectors.toList());
+        return dividendMapper.toEntityList(dtos);
     }
+
+    // ===========================================
+    // Методы для работы с Order (делегирование)
+    // ===========================================
+
+    
+    // ===========================================
+    // Универсальные методы для работы со списками
+    // ===========================================
+
+    /**
+     * Фильтрует null значения из списка
+     * 
+     * @param list список для фильтрации
+     * @return отфильтрованный список без null значений
+     */
+    public <T> List<T> filterNulls(List<T> list) {
+        return shareMapper.filterNulls(list);
+    }
+
+    /**
+     * Проверяет, является ли список пустым или null
+     * 
+     * @param list список для проверки
+     * @return true если список null или пустой
+     */
+    public <T> boolean isEmpty(List<T> list) {
+        return shareMapper.isEmpty(list);
+    }
+
 }

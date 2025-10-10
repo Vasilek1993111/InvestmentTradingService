@@ -330,6 +330,226 @@
             ]
         },
         {
+            "name": "Orders Management",
+            "description": "Управление заявками и групповыми операциями",
+            "item": [
+                {
+                    "name": "Create Group Order",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"instruments\": [\"BBG000B9XRY4\", \"BBG000B9XRY5\"],\n    \"main_price\": \"open_price\",\n    \"amount\": 10000,\n    \"direction\": \"buy\",\n    \"start_time\": \"10:00:00\",\n    \"levels\": {\n        \"level1\": 5,\n        \"level2\": 10,\n        \"level3\": 15\n    }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/group",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "group"
+                            ]
+                        },
+                        "description": "Создание групповой заявки с несколькими инструментами и уровнями"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Order by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/{{order_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "{{order_id}}"
+                            ]
+                        },
+                        "description": "Получение заявки по UUID"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Send Order (Force)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/{{order_id}}/send",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "{{order_id}}",
+                                "send"
+                            ]
+                        },
+                        "description": "Принудительная отправка заявки (не дожидаясь scheduled time)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Cancel Order",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/{{order_id}}/cancel",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "{{order_id}}",
+                                "cancel"
+                            ]
+                        },
+                        "description": "Отмена заявки по UUID"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Delete Order",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/{{order_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "{{order_id}}"
+                            ]
+                        },
+                        "description": "Удаление заявки по UUID"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Orders by Status",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/status/{{status}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "status",
+                                "{{status}}"
+                            ]
+                        },
+                        "description": "Получение заявок по статусу (PENDING, SENT, EXECUTED, REJECTED, CANCELLED, ERROR)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Orders Ready to Send",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/ready/{{time}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "ready",
+                                "{{time}}"
+                            ]
+                        },
+                        "description": "Получение заявок, готовых к отправке в указанное время (HH:mm:ss)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Orders Statistics",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/statistics",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "statistics"
+                            ]
+                        },
+                        "description": "Получение статистики по заявкам"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Scheduler Statistics",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/scheduler/statistics",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "scheduler",
+                                "statistics"
+                            ]
+                        },
+                        "description": "Получение статистики планировщика заявок"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Orders with Errors",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/errors",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "errors"
+                            ]
+                        },
+                        "description": "Получение заявок с ошибками"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
             "name": "Health & Monitoring",
             "description": "Мониторинг состояния приложения",
             "item": [
@@ -652,6 +872,192 @@
                         }
                     ],
                     "description": "Тест поиска инструментов по FIGI"
+                },
+                {
+                    "name": "Orders Management Test",
+                    "item": [
+                        {
+                            "name": "1. Create Group Order",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Group order created successfully', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json()).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().length).to.be.greaterThan(0);",
+                                            "    ",
+                                            "    // Сохраняем первый order_id для следующих тестов",
+                                            "    if (pm.response.json().length > 0) {",
+                                            "        pm.globals.set('order_id', pm.response.json()[0].orderId);",
+                                            "    }",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"instruments\": [\"BBG000B9XRY4\", \"BBG000B9XRY5\"],\n    \"main_price\": \"open_price\",\n    \"amount\": 10000,\n    \"direction\": \"buy\",\n    \"start_time\": \"10:00:00\",\n    \"levels\": {\n        \"level1\": 5,\n        \"level2\": 10,\n        \"level3\": 15\n    }\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/orders/group",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "orders",
+                                        "group"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "2. Get Created Order",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Order retrieved successfully', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json().orderId).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().quantity).to.be.a('number');",
+                                            "    pm.expect(pm.response.json().direction).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().instrumentId).to.be.a('string');",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/orders/{{order_id}}",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "orders",
+                                        "{{order_id}}"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "3. Get Orders by Status",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Orders by status retrieved', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json()).to.be.an('array');",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/orders/status/PENDING",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "orders",
+                                        "status",
+                                        "PENDING"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "4. Cancel Order",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Order cancelled successfully', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.text()).to.include('отменена');",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/orders/{{order_id}}/cancel",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "orders",
+                                        "{{order_id}}",
+                                        "cancel"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "5. Get Orders Statistics",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Orders statistics retrieved', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.text()).to.include('заявок');",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/orders/statistics",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "orders",
+                                        "statistics"
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    "description": "Полный тест управления заявками: создание → получение → отмена → статистика"
                 }
             ]
         }
@@ -680,6 +1086,11 @@
         {
             "key": "base_url",
             "value": "http://localhost:8080",
+            "type": "string"
+        },
+        {
+            "key": "order_id",
+            "value": "",
             "type": "string"
         }
     ]
