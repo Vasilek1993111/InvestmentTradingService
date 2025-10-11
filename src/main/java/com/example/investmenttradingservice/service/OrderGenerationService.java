@@ -25,7 +25,7 @@ public class OrderGenerationService {
     private static final Logger logger = LoggerFactory.getLogger(OrderGenerationService.class);
 
     /** Фасад для работы с инструментами */
-    @Autowired
+    @Autowired(required = false)
     private InstrumentServiceFacade instrumentServiceFacade;
 
     /** Идентификатор аккаунта из переменных окружения */
@@ -72,6 +72,12 @@ public class OrderGenerationService {
         List<OrderDTO> orders = new ArrayList<>();
 
         try {
+            if (instrumentServiceFacade == null) {
+                logger.warn("InstrumentServiceFacade не доступен, пропускаем генерацию заявок для инструмента: {}",
+                        instrumentId);
+                return orders;
+            }
+
             // Получаем данные о ценах для инструмента
             List<Object> priceData = instrumentServiceFacade.getPriceDataByType(
                     instrumentId, request.main_price().toLowerCase());
@@ -144,10 +150,10 @@ public class OrderGenerationService {
             }
 
             // Рассчитываем цену с учетом процента и направления
-            BigDecimal adjustedPrice = calculatePriceWithDirection(basePriceForLevel, levelPercentage, direction);
+            BigDecimal adjustedPrice = calculatePriceWithDirection(instrumentPrice, levelPercentage, direction);
 
             // Рассчитываем лотность
-            int lotSize = calculateLotSize(adjustedPrice, instrumentPrice);
+            int lotSize = calculateLotSize(basePriceForLevel, adjustedPrice);
 
             if (lotSize > 0) {
                 // Создаем заявку с учетом времени исполнения
@@ -169,31 +175,31 @@ public class OrderGenerationService {
     /**
      * Рассчитывает цену с учетом процента и направления торговли.
      * 
-     * @param basePrice  базовая цена
-     * @param percentage процент уровня
-     * @param direction  направление торговли
+     * @param instrumentPrice цена инструмента
+     * @param percentage      процент уровня
+     * @param direction       направление торговли
      * @return скорректированная цена
      */
-    private BigDecimal calculatePriceWithDirection(BigDecimal basePrice, BigDecimal percentage,
+    private BigDecimal calculatePriceWithDirection(BigDecimal instrumentPrice, BigDecimal percentage,
             OrderDirection direction) {
         // Преобразуем процент в десятичную дробь
         BigDecimal decimalPercentage = percentage.divide(new BigDecimal("100"), 6, java.math.RoundingMode.HALF_UP);
 
-        // Рассчитываем изменение цены
-        BigDecimal priceChange = basePrice.multiply(decimalPercentage);
+        // Рассчитываем изменение цены от instrumentPrice
+        BigDecimal priceChange = instrumentPrice.multiply(decimalPercentage);
 
         return switch (direction) {
             case ORDER_DIRECTION_SELL -> {
                 // Для продажи добавляем процент (цена выше)
-                yield basePrice.add(priceChange).setScale(2, java.math.RoundingMode.HALF_UP);
+                yield instrumentPrice.add(priceChange).setScale(2, java.math.RoundingMode.HALF_UP);
             }
             case ORDER_DIRECTION_BUY -> {
                 // Для покупки вычитаем процент (цена ниже)
-                yield basePrice.subtract(priceChange).setScale(2, java.math.RoundingMode.HALF_UP);
+                yield instrumentPrice.subtract(priceChange).setScale(2, java.math.RoundingMode.HALF_UP);
             }
             default -> {
                 logger.warn("Неподдерживаемое направление торговли: {}", direction);
-                yield basePrice;
+                yield instrumentPrice;
             }
         };
     }
@@ -201,20 +207,124 @@ public class OrderGenerationService {
     /**
      * Рассчитывает лотность заявки.
      * 
-     * @param adjustedPrice   скорректированная цена
-     * @param instrumentPrice цена инструмента
+     * @param priceForLevel базовая цена за уровень
+     * @param adjustedPrice скорректированная цена
      * @return лотность (округленная в меньшую сторону)
      */
-    private int calculateLotSize(BigDecimal adjustedPrice, BigDecimal instrumentPrice) {
-        if (instrumentPrice.compareTo(BigDecimal.ZERO) == 0) {
-            logger.warn("Цена инструмента равна нулю, невозможно рассчитать лотность");
+    private int calculateLotSize(BigDecimal priceForLevel, BigDecimal adjustedPrice) {
+        if (adjustedPrice.compareTo(BigDecimal.ZERO) == 0) {
+            logger.warn("Скорректированная цена равна нулю, невозможно рассчитать лотность");
             return 0;
         }
 
-        // Рассчитываем лотность: adjustedPrice / instrumentPrice
-        BigDecimal lotRatio = adjustedPrice.divide(instrumentPrice, 10, java.math.RoundingMode.HALF_UP);
+        // Рассчитываем лотность: priceForLevel / adjustedPrice
+        BigDecimal lotRatio = priceForLevel.divide(adjustedPrice, 10, java.math.RoundingMode.HALF_UP);
         int lotSize = lotRatio.setScale(0, java.math.RoundingMode.FLOOR).intValue();
 
         return Math.max(0, lotSize); // Гарантируем, что лотность не отрицательная
+    }
+
+    /**
+     * Генерирует список заявок и возвращает цену инструмента.
+     * 
+     * @param request групповой запрос на создание заявок
+     * @return пара: список заявок и цена инструмента
+     */
+    public java.util.AbstractMap.SimpleEntry<List<OrderDTO>, BigDecimal> generateOrdersWithInstrumentPrice(
+            GroupOrderRequest request) {
+        logger.info("Начало генерации заявок с ценой инструмента для {} инструментов", request.instruments().size());
+
+        List<OrderDTO> orders = new ArrayList<>();
+        BigDecimal instrumentPrice = BigDecimal.ZERO;
+
+        try {
+            // Обрабатываем каждый инструмент
+            for (String instrumentId : request.instruments()) {
+                java.util.AbstractMap.SimpleEntry<List<OrderDTO>, BigDecimal> instrumentResult = generateOrdersForInstrumentWithPrice(
+                        instrumentId, request);
+                orders.addAll(instrumentResult.getKey());
+
+                // Берем цену инструмента из первого инструмента
+                if (instrumentPrice.compareTo(BigDecimal.ZERO) == 0) {
+                    instrumentPrice = instrumentResult.getValue();
+                }
+
+                logger.debug("Сгенерировано {} заявок для инструмента {} с ценой {}",
+                        instrumentResult.getKey().size(), instrumentId, instrumentResult.getValue());
+            }
+
+            logger.info("Всего сгенерировано {} заявок с ценой инструмента: {}", orders.size(), instrumentPrice);
+            return new java.util.AbstractMap.SimpleEntry<>(orders, instrumentPrice);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при генерации заявок с ценой инструмента: {}", e.getMessage(), e);
+            return new java.util.AbstractMap.SimpleEntry<>(new ArrayList<>(), BigDecimal.ZERO);
+        }
+    }
+
+    /**
+     * Генерирует заявки для конкретного инструмента и возвращает цену инструмента.
+     * 
+     * @param instrumentId идентификатор инструмента
+     * @param request      групповой запрос
+     * @return пара: список заявок для инструмента и цена инструмента
+     */
+    private java.util.AbstractMap.SimpleEntry<List<OrderDTO>, BigDecimal> generateOrdersForInstrumentWithPrice(
+            String instrumentId, GroupOrderRequest request) {
+        List<OrderDTO> orders = new ArrayList<>();
+        BigDecimal instrumentPrice = BigDecimal.ZERO;
+
+        try {
+            if (instrumentServiceFacade == null) {
+                logger.warn("InstrumentServiceFacade не доступен, пропускаем генерацию заявок для инструмента: {}",
+                        instrumentId);
+                return new java.util.AbstractMap.SimpleEntry<>(orders, instrumentPrice);
+            }
+
+            // Получаем данные о ценах для инструмента
+            List<Object> priceData = instrumentServiceFacade.getPriceDataByType(
+                    instrumentId, request.main_price().toLowerCase());
+
+            if (priceData == null || priceData.isEmpty()) {
+                logger.warn("Данные о ценах не найдены для инструмента: {}", instrumentId);
+                return new java.util.AbstractMap.SimpleEntry<>(orders, instrumentPrice);
+            }
+
+            // Получаем цену инструмента
+            instrumentPrice = instrumentServiceFacade.extractPriceFromData(priceData.get(0));
+            if (instrumentPrice == null) {
+                logger.warn("Не удалось извлечь цену инструмента: {}", instrumentId);
+                return new java.util.AbstractMap.SimpleEntry<>(orders, BigDecimal.ZERO);
+            }
+
+            // Рассчитываем базовую цену за уровень
+            BigDecimal priceForLevel = request.amount().divide(
+                    new BigDecimal(request.levels().getLevelsCount()),
+                    2,
+                    java.math.RoundingMode.HALF_UP);
+
+            // Генерируем заявки в зависимости от направления
+            String direction = request.direction().toLowerCase();
+            switch (direction) {
+                case "buy" -> orders.addAll(generateOrdersForDirection(
+                        request, instrumentId, priceForLevel, OrderDirection.ORDER_DIRECTION_BUY, instrumentPrice));
+                case "sell" -> orders.addAll(generateOrdersForDirection(
+                        request, instrumentId, priceForLevel, OrderDirection.ORDER_DIRECTION_SELL, instrumentPrice));
+                case "all" -> {
+                    // Для "all" создаем заявки на покупку и продажу
+                    orders.addAll(generateOrdersForDirection(
+                            request, instrumentId, priceForLevel, OrderDirection.ORDER_DIRECTION_BUY, instrumentPrice));
+                    orders.addAll(generateOrdersForDirection(
+                            request, instrumentId, priceForLevel, OrderDirection.ORDER_DIRECTION_SELL,
+                            instrumentPrice));
+                }
+                default -> logger.warn("Неподдерживаемое направление торговли: {}", direction);
+            }
+
+        } catch (Exception e) {
+            logger.error("Ошибка при генерации заявок для инструмента {}: {}", instrumentId, e.getMessage(), e);
+        }
+
+        return new java.util.AbstractMap.SimpleEntry<>(orders, instrumentPrice);
     }
 }

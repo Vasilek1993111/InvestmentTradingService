@@ -8,7 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.example.investmenttradingservice.DTO.GroupOrderRequest;
+import com.example.investmenttradingservice.DTO.GroupOrderResponseDTO;
 import com.example.investmenttradingservice.DTO.OrderDTO;
+import java.math.BigDecimal;
 
 /**
  * Сервис для обработки отложенных заявок.
@@ -37,6 +39,10 @@ public class DelayedOrderService {
     @Autowired
     private OrderPersistenceService orderPersistenceService;
 
+    /** Кэш заявок для быстрого доступа */
+    @Autowired
+    private OrderCacheService orderCacheService;
+
     /**
      * Обрабатывает групповую заявку и возвращает список сгенерированных заявок.
      * 
@@ -57,10 +63,12 @@ public class DelayedOrderService {
             // Генерируем заявки
             List<OrderDTO> orders = orderGenerationService.generateOrders(request);
 
-            // Сохраняем заявки в БД
+            // Сначала кладем в кэш, затем дублируем в БД
             if (!orders.isEmpty()) {
+                orderCacheService.putAll(orders);
+                logger.info("Заявки сохранены в кэш");
                 orderPersistenceService.saveOrders(orders);
-                logger.info("Заявки сохранены в БД");
+                logger.info("Заявки сохранены в БД (events store)");
             }
 
             // Логируем результат
@@ -71,6 +79,50 @@ public class DelayedOrderService {
         } catch (Exception e) {
             logger.error("Ошибка при обработке групповой заявки: {}", e.getMessage(), e);
             return List.of();
+        }
+    }
+
+    /**
+     * Обрабатывает групповую заявку и возвращает ответ с заявками и ценой
+     * инструмента.
+     * 
+     * @param request запрос на создание групповой заявки
+     * @return ответ с заявками и реальной ценой инструмента из API
+     */
+    public GroupOrderResponseDTO processGroupOrderWithPrice(GroupOrderRequest request) {
+        logger.info("Начало обработки групповой заявки с ценой: {} инструментов, направление: {}, уровни: {}",
+                request.instruments().size(), request.direction(), request.levels().getLevelsCount());
+
+        try {
+            // Валидируем запрос
+            if (!isValidRequest(request)) {
+                logger.error("Некорректный запрос групповой заявки");
+                return GroupOrderResponseDTO.empty();
+            }
+
+            // Генерируем заявки и получаем реальную цену инструмента из API
+            var result = orderGenerationService.generateOrdersWithInstrumentPrice(request);
+            List<OrderDTO> orders = result.getKey();
+            BigDecimal instrumentPrice = result.getValue();
+
+            logger.info("Получена реальная цена инструмента из API: {}", instrumentPrice);
+
+            // Сначала кладем в кэш, затем дублируем в БД
+            if (!orders.isEmpty()) {
+                orderCacheService.putAll(orders);
+                logger.info("Заявки сохранены в кэш");
+                orderPersistenceService.saveOrders(orders);
+                logger.info("Заявки сохранены в БД (events store)");
+            }
+
+            // Логируем результат
+            logGenerationResult(request, orders);
+
+            return GroupOrderResponseDTO.of(orders, instrumentPrice);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при обработке групповой заявки: {}", e.getMessage(), e);
+            return GroupOrderResponseDTO.empty();
         }
     }
 

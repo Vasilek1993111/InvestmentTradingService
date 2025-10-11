@@ -5,15 +5,19 @@ import com.example.investmenttradingservice.enums.OrderStatus;
 import com.example.investmenttradingservice.service.OrderPersistenceService;
 import com.example.investmenttradingservice.service.TInvestApiService;
 
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalTime;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import com.example.investmenttradingservice.exception.BusinessLogicException;
 
 /**
  * Сервис для планирования и отправки заявок по расписанию.
@@ -30,12 +34,19 @@ import java.util.List;
 public class OrderSchedulerService {
 
     private static final Logger logger = LoggerFactory.getLogger(OrderSchedulerService.class);
-
+    private final int DELAY_MS = 100;
     @Autowired
     private OrderPersistenceService orderPersistenceService;
 
     @Autowired
     private TInvestApiService tInvestApiService;
+
+    @Autowired
+    @Qualifier("criticalOperationsExecutor")
+    private Executor criticalOperationsExecutor;
+
+    @Autowired
+    private com.example.investmenttradingservice.service.OrderCacheService orderCacheService;
 
     /**
      * Планировщик, который запускается каждую минуту для проверки заявок,
@@ -43,7 +54,7 @@ public class OrderSchedulerService {
      * 
      * Cron выражение: "0 * * * * ?" означает запуск в 0 секунд каждой минуты
      */
-    @Scheduled(cron = "0 * * * * ?")
+    @Scheduled(cron = "*/1 * * * * *")
     public void processScheduledOrders() {
         try {
             LocalTime currentTime = LocalTime.now();
@@ -59,9 +70,23 @@ public class OrderSchedulerService {
 
             logger.info("Найдено {} заявок для отправки в время: {}", ordersToSend.size(), currentTime);
 
-            // Отправляем каждую заявку
-            for (OrderEntity order : ordersToSend) {
-                processSingleOrder(order);
+            // Читаем заявки из кэша, а не из БД
+            List<OrderEntity> cachedDue = orderCacheService.getDue(currentTime);
+            if (cachedDue.isEmpty()) {
+                logger.debug("В кэше нет заявок к отправке на {}", currentTime);
+                return;
+            }
+
+            for (OrderEntity order : cachedDue) {
+                CompletableFuture.runAsync(() -> {
+                    // Задержка 100мс перед отправкой
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(DELAY_MS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                    processSingleOrderFromCache(order);
+                }, criticalOperationsExecutor);
             }
 
         } catch (Exception e) {
@@ -108,6 +133,38 @@ public class OrderSchedulerService {
     }
 
     /**
+     * Обрабатывает заявку из кэша: отправляет, обновляет БД, затем удаляет из кэша.
+     */
+    private void processSingleOrderFromCache(OrderEntity order) {
+        try {
+            logger.info("[CACHE] Отправка заявки ID: {}, инструмент: {}, направление: {}, количество: {}, цена: {}",
+                    order.getOrderId(), order.getInstrumentId(), order.getDirection(), order.getQuantity(),
+                    formatPrice(order.getPrice()));
+
+            TInvestApiService.TInvestApiResponse response = tInvestApiService.sendOrder(order);
+
+            if (response.isSuccess()) {
+                logger.info("[CACHE] Заявка ID {} успешно отправлена, Order ID: {}", order.getOrderId(),
+                        response.getOrderId());
+                orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.SENT, response.getOrderId(),
+                        null);
+                orderCacheService.remove(order.getOrderId());
+            } else {
+                logger.error("[CACHE] Ошибка отправки заявки ID {}: {}", order.getOrderId(),
+                        response.getErrorMessage());
+                orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.ERROR, null,
+                        response.getErrorMessage());
+                orderCacheService.remove(order.getOrderId());
+            }
+        } catch (Exception e) {
+            logger.error("[CACHE] Ошибка при отправке заявки ID {}: {}", order.getOrderId(), e.getMessage(), e);
+            orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.ERROR, null,
+                    "Ошибка отправки: " + e.getMessage());
+            orderCacheService.remove(order.getOrderId());
+        }
+    }
+
+    /**
      * Форматирует цену для логирования.
      * 
      * @param units целая часть цены
@@ -148,6 +205,41 @@ public class OrderSchedulerService {
         } catch (Exception e) {
             logger.error("Ошибка при принудительной отправке заявки ID {}: {}", orderId, e.getMessage(), e);
             return false;
+        }
+    }
+
+    /**
+     * Принудительная отправка заявки и возврат сырого ответа T-API.
+     */
+    public ru.tinkoff.piapi.contract.v1.PostOrderResponse forceSendOrderRaw(String orderId) {
+        try {
+            OrderEntity order = orderPersistenceService.findOrderByOrderId(orderId).orElse(null);
+            if (order == null) {
+                throw new BusinessLogicException(
+                        String.format("Заявка с ID '%s' не найдена", orderId),
+                        "ORDER_NOT_FOUND");
+            }
+            if (!order.isReadyToSend()) {
+                throw new BusinessLogicException(
+                        String.format(
+                                "Заявка '%s' не готова к отправке (проверьте accountId, instrumentId, price, quantity)",
+                                orderId),
+                        "ORDER_NOT_READY");
+            }
+            ru.tinkoff.piapi.contract.v1.PostOrderResponse resp = tInvestApiService.sendOrderRaw(order);
+            orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.SENT, resp.getOrderId(), null);
+            orderCacheService.remove(order.getOrderId());
+            return resp;
+        } catch (Exception e) {
+            logger.error("Ошибка при принудительной отправке (raw) {}: {}", orderId, e.getMessage(), e);
+            // фиксация ошибки в БД
+            try {
+                orderPersistenceService.updateOrderStatus(orderId, OrderStatus.ERROR, null, e.getMessage());
+            } catch (Exception ignore) {
+            }
+            throw new BusinessLogicException(
+                    String.format("T-Invest API ошибка при отправке заявки '%s': %s", orderId, e.getMessage()),
+                    "TINVEST_API_ERROR");
         }
     }
 

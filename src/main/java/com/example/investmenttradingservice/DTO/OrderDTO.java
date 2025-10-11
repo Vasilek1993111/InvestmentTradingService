@@ -48,7 +48,7 @@ public record OrderDTO(
                 QuotationDTO.fromBigDecimal(price),
                 direction,
                 accountId,
-                OrderType.ORDER_TYPE_UNSPECIFIED,
+                OrderType.ORDER_TYPE_LIMIT,
                 UUID.randomUUID().toString(),
                 instrumentId,
                 scheduledTime);
@@ -73,7 +73,7 @@ public record OrderDTO(
                 QuotationDTO.fromBigDecimal(price),
                 direction,
                 accountId,
-                OrderType.ORDER_TYPE_UNSPECIFIED,
+                OrderType.ORDER_TYPE_LIMIT,
                 orderId,
                 instrumentId,
                 scheduledTime);
@@ -86,6 +86,15 @@ public record OrderDTO(
      */
     public java.math.BigDecimal getPriceAsBigDecimal() {
         return price.toBigDecimal();
+    }
+
+    /**
+     * Получает цену в виде BigDecimal с округлением до 2 знаков после запятой.
+     * 
+     * @return цена как BigDecimal с округлением до копеек
+     */
+    public java.math.BigDecimal getPriceAsBigDecimalRounded() {
+        return price.toBigDecimal().setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     /**

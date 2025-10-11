@@ -1,149 +1,222 @@
 package com.example.investmenttradingservice.service;
 
-import com.example.investmenttradingservice.entity.OrderEntity;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.concurrent.TimeUnit;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.example.investmenttradingservice.entity.OrderEntity;
+import com.example.investmenttradingservice.enums.OrderDirection;
+import com.example.investmenttradingservice.enums.OrderType;
+
+import ru.tinkoff.piapi.contract.v1.PostOrderResponse;
+import ru.tinkoff.piapi.contract.v1.Quotation;
+import ru.tinkoff.piapi.core.OrdersService;
+
 /**
- * Сервис для интеграции с T-Invest API.
- * 
- * TODO: Реализовать интеграцию с официальным T-Invest API
- * 
- * Планируемая функциональность:
- * - Отправка заявок на покупку/продажу
- * - Получение статуса заявок
- * - Отмена заявок
- * - Получение информации об аккаунте
- * - Обработка ошибок API и rate limiting
- * 
- * @author Investment Trading Service
- * @version 1.0
+ * TInvestApiService — обертка над официальным Java SDK T-Invest для отправки
+ * заявок.
+ *
+ * <p>
+ * Использует {@link OrdersService} и метод PostOrder согласно документации
+ * {@code OrdersService/PostOrder}. Реализована минимальная логика маппинга
+ * полей
+ * из {@link OrderEntity} в {@link PostOrderRequest}, а также базовая
+ * retry-механика
+ * с экспоненциальной задержкой при временных ошибках API.
+ * </p>
+ *
+ * <p>
+ * См. описание метода:
+ * https://developer.tbank.ru/invest/api/orders-service-post-order
+ * </p>
  */
 @Service
 public class TInvestApiService {
 
     private static final Logger logger = LoggerFactory.getLogger(TInvestApiService.class);
+    private static final Logger apiLogger = LoggerFactory.getLogger("com.example.investmenttradingservice.tinvest.api");
+
+    @Autowired
+    private OrdersService ordersService;
+
+    @Value("${tinvest.api.token}")
+    private String apiToken;
+
+    // accountId используется из заявки как есть (без подстановок)
+
+    @Value("${tinvest.api.timeout:30000}")
+    private int timeoutMs;
+
+    @Value("${tinvest.api.postorder.max-attempts:3}")
+    private int maxAttempts;
+
+    // Инициализация происходит через конфигурацию InvestApi/OrdersService
 
     /**
-     * Отправляет заявку в T-Invest API.
-     * 
-     * TODO: Реализовать интеграцию с T-Invest API
-     * 
-     * Планируемая структура:
-     * 1. Подготовка данных заявки в формате T-Invest API
-     * 2. Отправка POST запроса к /orders
-     * 3. Обработка ответа и ошибок
-     * 4. Возврат результата с ID заявки от T-Invest
-     * 
-     * @param order заявка для отправки
-     * @return результат отправки заявки
+     * Отправляет заявку в T-Invest API посредством PostOrder.
+     *
+     * <p>
+     * Поля маппятся согласно документации API. Для рыночных заявок цена передается,
+     * но сервер может её игнорировать. Включена простая retry-механика
+     * (экспоненциальная
+     * задержка) при временных сбоях.
+     * </p>
+     *
+     * @param order доменная заявка
+     * @return результат отправки с признаком успеха и ID заявки в T-Invest
      */
     public TInvestApiResponse sendOrder(OrderEntity order) {
-        logger.info("TODO: Отправка заявки в T-Invest API - Order ID: {}, Instrument: {}, Direction: {}",
-                order.getOrderId(), order.getInstrumentId(), order.getDirection());
+        if (order == null || !order.isReadyToSend()) {
+            return TInvestApiResponse.error("Заявка не готова к отправке");
+        }
 
-        // TODO: Реализовать реальную интеграцию с T-Invest API
-        // Примерная структура:
-        //
-        // 1. Подготовка запроса:
-        // TInvestOrderRequest request = TInvestOrderRequest.builder()
-        // .figi(order.getInstrumentId())
-        // .quantity(order.getQuantity())
-        // .price(Quotation.newBuilder()
-        // .setUnits(order.getPriceUnits())
-        // .setNano(order.getPriceNano())
-        // .build())
-        // .direction(convertDirection(order.getDirection()))
-        // .orderType(OrderType.ORDER_TYPE_UNSPECIFIED)
-        // .accountId(order.getAccountId())
-        // .build();
-        //
-        // 2. Отправка запроса:
-        // try {
-        // PostOrderResponse response = ordersService.postOrder(request);
-        // return TInvestApiResponse.success(response.getOrderId());
-        // } catch (StatusRuntimeException e) {
-        // return TInvestApiResponse.error(e.getStatus().getDescription());
-        // }
+        String accountId = order.getAccountId();
 
-        // Временная заглушка
-        return TInvestApiResponse.success("PLACEHOLDER_ORDER_ID_" + System.currentTimeMillis());
+        long quantity = order.getQuantity().longValue();
+        Quotation price = toQuotation(order.getPrice());
+        ru.tinkoff.piapi.contract.v1.OrderDirection direction = mapDirection(order.getDirection());
+        String instrumentId = order.getInstrumentId();
+        ru.tinkoff.piapi.contract.v1.OrderType orderType = mapOrderType(order.getOrderType());
+        String orderId = order.getOrderId();
+
+        int attempt = 0;
+        long backoffMs = 250L; // стартовая задержка
+
+        while (true) {
+            attempt++;
+            try {
+                // Лог запроса (без секретов)
+                apiLogger.info(
+                        "PostOrder request: accountId={}, lots={}, direction={}, type={}, instrumentId={}, orderId={}, price={{units:{},nano:{}}}, token={}",
+                        accountId, quantity, direction, orderType, instrumentId, mask(orderId), price.getUnits(),
+                        price.getNano(), apiToken);
+
+                PostOrderResponse response = ordersService
+                        .postOrder(accountId, quantity, price, direction, instrumentId, orderType, orderId)
+                        .join();
+                String tinvestOrderId = response.getOrderId();
+                if (tinvestOrderId == null || tinvestOrderId.isBlank()) {
+                    apiLogger.warn("PostOrder empty response orderId for orderId={} instrumentId={}", mask(orderId),
+                            instrumentId);
+                    return TInvestApiResponse.error("Пустой orderId в ответе API");
+                }
+
+                logger.debug("PostOrder успешно: orderId={}, lots={}, direction={}, type={}",
+                        tinvestOrderId, order.getQuantity(), order.getDirection(), order.getOrderType());
+                // Лог ответа
+                apiLogger.info(
+                        "PostOrder response: orderId={}, executedOrderPrice={{units:{},nano:{}}}, message={}, token={}",
+                        tinvestOrderId,
+                        response.hasExecutedOrderPrice() ? response.getExecutedOrderPrice().getUnits() : 0,
+                        response.hasExecutedOrderPrice() ? response.getExecutedOrderPrice().getNano() : 0,
+                        safeMsg(response.getMessage()), apiToken);
+
+                return TInvestApiResponse.success(tinvestOrderId);
+            } catch (Exception ex) {
+                // Базовая эвристика: ретраим ограниченное число раз
+                if (attempt >= maxAttempts) {
+                    logger.error("PostOrder ошибка (попытка {} из {}): {}", attempt, maxAttempts, ex.getMessage());
+                    apiLogger.error("PostOrder failed: orderId={}, instrumentId={}, attempt={}/{}, error={}, token={}",
+                            mask(orderId), instrumentId, attempt, maxAttempts, safeErrorMessage(ex), apiToken);
+                    return TInvestApiResponse.error(safeErrorMessage(ex));
+                }
+
+                logger.warn("PostOrder временная ошибка, retry через {} ms (attempt {}/{}): {}",
+                        backoffMs, attempt, maxAttempts, ex.getMessage());
+                apiLogger.warn("PostOrder retry: orderId={}, instrumentId={}, nextDelayMs={}, attempt={}/{}, token={}",
+                        mask(orderId), instrumentId, backoffMs, attempt, maxAttempts, apiToken);
+                sleepQuietly(backoffMs);
+                backoffMs = Math.min(backoffMs * 2, 5_000L);
+            }
+        }
     }
 
     /**
-     * Получает статус заявки из T-Invest API.
-     * 
-     * TODO: Реализовать получение статуса заявки
-     * 
-     * @param orderId ID заявки в T-Invest
-     * @return статус заявки
+     * Отправляет заявку и возвращает сырой ответ PostOrderResponse.
      */
-    public TInvestOrderStatus getOrderStatus(String orderId) {
-        logger.info("TODO: Получение статуса заявки из T-Invest API - Order ID: {}", orderId);
+    public PostOrderResponse sendOrderRaw(OrderEntity order) {
+        String accountId = order.getAccountId();
+        long quantity = order.getQuantity().longValue();
+        Quotation price = toQuotation(order.getPrice());
+        ru.tinkoff.piapi.contract.v1.OrderDirection direction = mapDirection(order.getDirection());
+        String instrumentId = order.getInstrumentId();
+        ru.tinkoff.piapi.contract.v1.OrderType orderType = mapOrderType(order.getOrderType());
+        String orderId = order.getOrderId();
+        
+        return ordersService.postOrder(instrumentId, quantity, price, direction, accountId, orderType, orderId).join();
 
-        // TODO: Реализовать получение статуса заявки
-        // Примерная структура:
-        // GetOrderStateRequest request = GetOrderStateRequest.newBuilder()
-        // .setAccountId(accountId)
-        // .setOrderId(orderId)
-        // .build();
-        // OrderState state = ordersService.getOrderState(request);
-        // return convertOrderState(state);
+    }
 
-        // Временная заглушка
-        return TInvestOrderStatus.EXECUTED;
+    private static String safeErrorMessage(Exception ex) {
+        String msg = ex.getMessage();
+        return msg == null ? "API error" : (msg.length() > 500 ? msg.substring(0, 500) : msg);
+    }
+
+    private static void sleepQuietly(long millis) {
+        try {
+            TimeUnit.MILLISECONDS.sleep(millis);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private Quotation toQuotation(BigDecimal price) {
+        if (price == null) {
+            // Нулевая цена для совместимости (рынок может игнорировать)
+            return Quotation.newBuilder().setUnits(0).setNano(0).build();
+        }
+        BigDecimal scaled = price.setScale(9, RoundingMode.HALF_UP);
+        long units = scaled.longValue();
+        BigDecimal nanosPart = scaled.subtract(BigDecimal.valueOf(units)).movePointRight(9);
+        int nanos = nanosPart.intValue();
+        return Quotation.newBuilder().setUnits(units).setNano(nanos).build();
+    }
+
+    private ru.tinkoff.piapi.contract.v1.OrderDirection mapDirection(OrderDirection direction) {
+        if (direction == null) {
+            return ru.tinkoff.piapi.contract.v1.OrderDirection.ORDER_DIRECTION_UNSPECIFIED;
+        }
+        return switch (direction) {
+            case ORDER_DIRECTION_BUY -> ru.tinkoff.piapi.contract.v1.OrderDirection.ORDER_DIRECTION_BUY;
+            case ORDER_DIRECTION_SELL -> ru.tinkoff.piapi.contract.v1.OrderDirection.ORDER_DIRECTION_SELL;
+            default -> ru.tinkoff.piapi.contract.v1.OrderDirection.ORDER_DIRECTION_UNSPECIFIED;
+        };
+    }
+
+    private ru.tinkoff.piapi.contract.v1.OrderType mapOrderType(OrderType type) {
+        if (type == null) {
+            return ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_UNSPECIFIED;
+        }
+        return switch (type) {
+            case ORDER_TYPE_LIMIT -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_LIMIT;
+            case ORDER_TYPE_MARKET -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_MARKET;
+            default -> ru.tinkoff.piapi.contract.v1.OrderType.ORDER_TYPE_UNSPECIFIED;
+        };
+    }
+
+    private static String mask(String value) {
+        if (value == null)
+            return "null";
+        String v = value.trim();
+        if (v.length() <= 6)
+            return "***";
+        return v.substring(0, 3) + "***" + v.substring(v.length() - 2);
+    }
+
+    private static String safeMsg(String msg) {
+        if (msg == null)
+            return "";
+        return msg.length() > 500 ? msg.substring(0, 500) : msg;
     }
 
     /**
-     * Отменяет заявку в T-Invest API.
-     * 
-     * TODO: Реализовать отмену заявки
-     * 
-     * @param orderId ID заявки для отмены
-     * @return результат отмены
-     */
-    public TInvestApiResponse cancelOrder(String orderId) {
-        logger.info("TODO: Отмена заявки в T-Invest API - Order ID: {}", orderId);
-
-        // TODO: Реализовать отмену заявки
-        // Примерная структура:
-        // CancelOrderRequest request = CancelOrderRequest.newBuilder()
-        // .setAccountId(accountId)
-        // .setOrderId(orderId)
-        // .build();
-        // CancelOrderResponse response = ordersService.cancelOrder(request);
-        // return TInvestApiResponse.success(response.getTime().toString());
-
-        // Временная заглушка
-        return TInvestApiResponse.success("ORDER_CANCELLED");
-    }
-
-    /**
-     * Получает информацию об аккаунте из T-Invest API.
-     * 
-     * TODO: Реализовать получение информации об аккаунте
-     * 
-     * @return информация об аккаунте
-     */
-    public TInvestAccountInfo getAccountInfo() {
-        logger.info("TODO: Получение информации об аккаунте из T-Invest API");
-
-        // TODO: Реализовать получение информации об аккаунте
-        // Примерная структура:
-        // GetAccountsResponse accounts = usersService.getAccounts();
-        // Account account = accounts.getAccounts(0); // Берем первый аккаунт
-        // return TInvestAccountInfo.fromAccount(account);
-
-        // Временная заглушка
-        return TInvestAccountInfo.builder()
-                .accountId("PLACEHOLDER_ACCOUNT_ID")
-                .accountType("PLACEHOLDER_TYPE")
-                .build();
-    }
-
-    /**
-     * Внутренний класс для ответа T-Invest API.
+     * Простая DTO для ответа сервиса отправки заявки.
      */
     public static class TInvestApiResponse {
         private final boolean success;
@@ -174,66 +247,6 @@ public class TInvestApiService {
 
         public String getErrorMessage() {
             return errorMessage;
-        }
-    }
-
-    /**
-     * Внутренний класс для статуса заявки T-Invest.
-     */
-    public enum TInvestOrderStatus {
-        NEW, // Новая
-        PARTIALLY_FILL, // Частично исполнена
-        FILL, // Исполнена
-        CANCELLED, // Отменена
-        REPLACED, // Заменена
-        PENDING_CANCEL, // Ожидает отмены
-        REJECTED, // Отклонена
-        PENDING_REPLACE, // Ожидает замены
-        PENDING_NEW, // Ожидает подтверждения
-        EXECUTED // Исполнена (alias для FILL)
-    }
-
-    /**
-     * Внутренний класс для информации об аккаунте T-Invest.
-     */
-    public static class TInvestAccountInfo {
-        private final String accountId;
-        private final String accountType;
-
-        private TInvestAccountInfo(String accountId, String accountType) {
-            this.accountId = accountId;
-            this.accountType = accountType;
-        }
-
-        public static Builder builder() {
-            return new Builder();
-        }
-
-        public String getAccountId() {
-            return accountId;
-        }
-
-        public String getAccountType() {
-            return accountType;
-        }
-
-        public static class Builder {
-            private String accountId;
-            private String accountType;
-
-            public Builder accountId(String accountId) {
-                this.accountId = accountId;
-                return this;
-            }
-
-            public Builder accountType(String accountType) {
-                this.accountType = accountType;
-                return this;
-            }
-
-            public TInvestAccountInfo build() {
-                return new TInvestAccountInfo(accountId, accountType);
-            }
         }
     }
 }

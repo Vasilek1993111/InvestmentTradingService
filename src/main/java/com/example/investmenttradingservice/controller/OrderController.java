@@ -1,16 +1,20 @@
 package com.example.investmenttradingservice.controller;
 
 import com.example.investmenttradingservice.DTO.GroupOrderRequest;
+import com.example.investmenttradingservice.DTO.GroupOrderResponseDTO;
 import com.example.investmenttradingservice.DTO.OrderDTO;
 import com.example.investmenttradingservice.DTO.OrderResponseDTO;
+import com.example.investmenttradingservice.DTO.TinkoffPostOrderResponseDTO;
 import com.example.investmenttradingservice.DTO.ApiSuccessResponse;
 import com.example.investmenttradingservice.exception.ValidationException;
 import com.example.investmenttradingservice.exception.BusinessLogicException;
-// убран прямой импорт сущности из контроллера
+
 import com.example.investmenttradingservice.enums.OrderStatus;
 import com.example.investmenttradingservice.service.DelayedOrderService;
 import com.example.investmenttradingservice.service.OrderPersistenceService;
 import com.example.investmenttradingservice.shedullers.OrderSchedulerService;
+import com.example.investmenttradingservice.service.OrderCacheService;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalTime;
+
 import java.util.List;
 
 /**
@@ -47,6 +52,11 @@ public class OrderController {
 
     @Autowired
     private OrderSchedulerService orderSchedulerService;
+
+    @Autowired
+    private OrderCacheService orderCacheService;
+
+
 
     /**
      * Создает групповую заявку.
@@ -77,12 +87,60 @@ public class OrderController {
     }
 
     /**
+     * Создает групповую заявку с возвратом цены инструмента.
+     * 
+     * @param request данные групповой заявки
+     * @return ответ с заявками и ценой инструмента из main_price поля
+     */
+    @PostMapping("/group/with-price")
+    public ResponseEntity<GroupOrderResponseDTO> createGroupOrderWithPrice(@RequestBody GroupOrderRequest request) {
+        try {
+            logger.info("Создание групповой заявки с ценой для {} инструментов, время: {}, main_price: {}",
+                    request.instruments().size(), request.start_time(), request.main_price());
+
+            GroupOrderResponseDTO response = delayedOrderService.processGroupOrderWithPrice(request);
+
+            if (response.orders().isEmpty()) {
+                logger.warn("Не удалось создать заявки для группового запроса");
+                return ResponseEntity.badRequest().body(GroupOrderResponseDTO.empty());
+            }
+
+            logger.info("Создано {} заявок для группового запроса, цена инструмента: {}",
+                    response.orders().size(), response.instrumentPrice());
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при создании групповой заявки с ценой: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(GroupOrderResponseDTO.empty());
+        }
+    }
+
+    /**
+    
+
+    /**
+     * Возвращает все заявки, находящиеся в кэше.
+     * 
+     * @return список заявок из кэша
+     */
+    @GetMapping("/cache")
+    public ResponseEntity<List<OrderDTO>> getCachedOrders() {
+        try {
+            List<OrderDTO> cached = orderCacheService.getAllDTOs();
+            return ResponseEntity.ok(cached);
+        } catch (Exception e) {
+            logger.error("Ошибка при получении заявок из кэша: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(List.of());
+        }
+    }
+
+    /**
      * Получает заявку по её ID.
      * 
      * @param orderId ID заявки
      * @return заявка или 404 если не найдена
      */
-    @GetMapping("/{orderId}")
+    @GetMapping("/{orderId:[0-9a-fA-F\\-]{36}}")
     public ResponseEntity<ApiSuccessResponse<OrderResponseDTO>> getOrder(@PathVariable String orderId) {
         logger.info("Получен запрос на заявку с ID: {}", orderId);
 
@@ -143,8 +201,8 @@ public class OrderController {
      * @param orderId ID заявки для отправки
      * @return результат отправки
      */
-    @PostMapping("/{orderId}/send")
-    public ResponseEntity<ApiSuccessResponse<String>> sendOrder(@PathVariable String orderId) {
+    @PostMapping("/{orderId:[0-9a-fA-F\\-]{36}}/send")
+    public ResponseEntity<ApiSuccessResponse<TinkoffPostOrderResponseDTO>> sendOrder(@PathVariable String orderId) {
         logger.info("Принудительная отправка заявки ID: {}", orderId);
 
         // Валидация orderId
@@ -164,25 +222,18 @@ public class OrderController {
         }
 
         try {
-            boolean success = orderSchedulerService.sendOrderById(orderId);
-
-            if (success) {
-                ApiSuccessResponse<String> response = ApiSuccessResponse.<String>builder()
-                        .message("Заявка успешно отправлена")
-                        .data("Заявка отправлена в T-Invest API")
-                        .totalCount(1)
-                        .dataType("operation_result")
-                        .addMetadata("orderId", orderId)
-                        .addMetadata("operation", "send_order")
-                        .addMetadata("success", true)
-                        .build();
-
-                return ResponseEntity.ok(response);
-            } else {
-                throw new BusinessLogicException(
-                        "Заявка не найдена или уже обработана",
-                        "ORDER_NOT_FOUND_OR_PROCESSED");
-            }
+            var raw = orderSchedulerService.forceSendOrderRaw(orderId);
+            var dto = TinkoffPostOrderResponseDTO.from(raw);
+            ApiSuccessResponse<TinkoffPostOrderResponseDTO> response = ApiSuccessResponse
+                    .<TinkoffPostOrderResponseDTO>builder()
+                    .message("PostOrder выполнен")
+                    .data(dto)
+                    .totalCount(1)
+                    .dataType("tinvest_post_order_response")
+                    .addMetadata("orderId", orderId)
+                    .addMetadata("operation", "send_order_raw")
+                    .build();
+            return ResponseEntity.ok(response);
 
         } catch (ValidationException | BusinessLogicException e) {
             // Эти исключения обрабатываются глобальным обработчиком
@@ -199,7 +250,7 @@ public class OrderController {
      * @param orderId UUID заявки
      * @return результат отмены
      */
-    @PostMapping("/{orderId}/cancel")
+    @PostMapping("/{orderId:[0-9a-fA-F\\-]{36}}/cancel")
     public ResponseEntity<ApiSuccessResponse<String>> cancelOrder(@PathVariable String orderId) {
         logger.info("Отмена заявки ID: {}", orderId);
 
@@ -260,7 +311,7 @@ public class OrderController {
      * @param orderId UUID заявки
      * @return результат удаления
      */
-    @DeleteMapping("/{orderId}")
+    @DeleteMapping("/{orderId:[0-9a-fA-F\\-]{36}}")
     public ResponseEntity<ApiSuccessResponse<String>> deleteOrder(@PathVariable String orderId) {
         logger.info("Удаление заявки ID: {}", orderId);
 

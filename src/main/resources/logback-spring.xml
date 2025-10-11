@@ -11,6 +11,23 @@
         </encoder>
     </appender>
     
+    <!-- Аппендер для логов T-Invest API (запросы/ответы) -->
+    <appender name="TININVEST_API_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_BASE_DIR}/tinvest-api.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_BASE_DIR}/%d{yyyy-MM-dd}/tinvest-api.%d{yyyy-MM-dd-HH}.%i.log</fileNamePattern>
+            <maxFileSize>25MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>500MB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+    
     <!-- Основной файловый аппендер с ротацией по часам -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_BASE_DIR}/investment-trading-service.log</file>
@@ -93,6 +110,12 @@
     <!-- Специальный логгер для кэша -->
     <logger name="com.example.investmenttradingservice.service.CacheService" level="INFO" additivity="false">
         <appender-ref ref="CACHE_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    
+    <!-- Специальный логгер для T-Invest API запросов/ответов -->
+    <logger name="com.example.investmenttradingservice.tinvest.api" level="INFO" additivity="false">
+        <appender-ref ref="TININVEST_API_FILE"/>
         <appender-ref ref="CONSOLE"/>
     </logger>
     
