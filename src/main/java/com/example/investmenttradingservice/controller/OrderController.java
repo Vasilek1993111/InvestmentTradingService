@@ -14,7 +14,8 @@ import com.example.investmenttradingservice.service.DelayedOrderService;
 import com.example.investmenttradingservice.service.OrderPersistenceService;
 import com.example.investmenttradingservice.shedullers.OrderSchedulerService;
 import com.example.investmenttradingservice.service.OrderCacheService;
-
+import com.example.investmenttradingservice.service.TInvestApiService;
+import com.example.investmenttradingservice.entity.OrderEntity;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,9 +23,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalTime;
-
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST контроллер для управления заявками и планировщиком.
@@ -48,6 +51,9 @@ public class OrderController {
     private DelayedOrderService delayedOrderService;
 
     @Autowired
+    private TInvestApiService tInvestApiService;
+
+    @Autowired
     private OrderPersistenceService orderPersistenceService;
 
     @Autowired
@@ -55,8 +61,6 @@ public class OrderController {
 
     @Autowired
     private OrderCacheService orderCacheService;
-
-
 
     /**
      * Создает групповую заявку.
@@ -116,9 +120,9 @@ public class OrderController {
     }
 
     /**
-    
-
-    /**
+     * 
+     * 
+     * /**
      * Возвращает все заявки, находящиеся в кэше.
      * 
      * @return список заявок из кэша
@@ -473,6 +477,60 @@ public class OrderController {
         } catch (Exception e) {
             logger.error("Ошибка при получении заявок с ошибками: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(List.of());
+        }
+    }
+
+    @GetMapping("/limits/{instrumentId}")
+    public ResponseEntity<Map<String, Object>> getLimitsForInstrument(@PathVariable String instrumentId) {
+        List<BigDecimal> limits = tInvestApiService.getLimitsForInstrument(instrumentId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("instrumentId", instrumentId);
+        BigDecimal limitDown = limits.get(0);
+        BigDecimal limitUp = limits.get(1);
+        response.put("limitDown", limitDown);
+        response.put("limitUp", limitUp);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Тестирование логики переноса просроченных заявок
+     */
+    @GetMapping("/test-reschedule/{currentTime}")
+    public ResponseEntity<Map<String, Object>> testRescheduleLogic(@PathVariable String currentTime) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            LocalTime time = LocalTime.parse(currentTime);
+
+            // Получаем просроченные заявки из кэша
+            List<OrderEntity> overdueOrders = orderCacheService.getOverdueOrders(time);
+            response.put("overdueOrdersCount", overdueOrders.size());
+            response.put("overdueOrders", overdueOrders.stream()
+                    .map(order -> Map.of(
+                            "orderId", order.getOrderId(),
+                            "scheduledTime", order.getScheduledTime(),
+                            "instrumentId", order.getInstrumentId()))
+                    .toList());
+
+            // Получаем заявки с точным временем
+            List<OrderEntity> exactTimeOrders = orderCacheService.getExactTimeOrders(time);
+            response.put("exactTimeOrdersCount", exactTimeOrders.size());
+            response.put("exactTimeOrders", exactTimeOrders.stream()
+                    .map(order -> Map.of(
+                            "orderId", order.getOrderId(),
+                            "scheduledTime", order.getScheduledTime(),
+                            "instrumentId", order.getInstrumentId()))
+                    .toList());
+
+            // Тестируем перенос просроченных заявок
+            int rescheduledCount = orderCacheService.rescheduleOverdueOrders(time);
+            response.put("rescheduledCount", rescheduledCount);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            response.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
         }
     }
 }

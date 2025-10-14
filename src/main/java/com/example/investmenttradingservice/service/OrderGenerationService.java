@@ -28,6 +28,10 @@ public class OrderGenerationService {
     @Autowired(required = false)
     private InstrumentServiceFacade instrumentServiceFacade;
 
+    /** Сервис для работы с T-Invest API */
+    @Autowired(required = false)
+    private TInvestApiService tInvestApiService;
+
     /** Идентификатор аккаунта из переменных окружения */
     @Value("${tinvest.account.id:}")
     private String accountId;
@@ -94,10 +98,12 @@ public class OrderGenerationService {
                 return orders;
             }
 
-            // Рассчитываем базовую цену за уровень
+            logger.info("Цена инструмента {}: {}", instrumentId, instrumentPrice);
+
+            // Рассчитываем базовую цену за уровень с округлением до 6 знаков
             BigDecimal priceForLevel = request.amount().divide(
                     new BigDecimal(request.levels().getLevelsCount()),
-                    2,
+                    6,
                     java.math.RoundingMode.HALF_UP);
 
             // Генерируем заявки в зависимости от направления
@@ -149,8 +155,12 @@ public class OrderGenerationService {
                 continue;
             }
 
-            // Рассчитываем цену с учетом процента и направления
-            BigDecimal adjustedPrice = calculatePriceWithDirection(instrumentPrice, levelPercentage, direction);
+            // Рассчитываем цену с учетом процента, направления и лимитов
+            BigDecimal adjustedPrice = calculatePriceWithDirection(instrumentPrice, levelPercentage, direction,
+                    instrumentId);
+
+            logger.info("Расчет для уровня {}: instrumentPrice={}, levelPercentage={}, direction={}, adjustedPrice={}",
+                    level, instrumentPrice, levelPercentage, direction, adjustedPrice);
 
             // Рассчитываем лотность
             int lotSize = calculateLotSize(basePriceForLevel, adjustedPrice);
@@ -173,35 +183,108 @@ public class OrderGenerationService {
     }
 
     /**
-     * Рассчитывает цену с учетом процента и направления торговли.
+     * Рассчитывает цену с учетом процента, направления торговли и лимитов
+     * инструмента.
      * 
      * @param instrumentPrice цена инструмента
      * @param percentage      процент уровня
      * @param direction       направление торговли
-     * @return скорректированная цена
+     * @param instrumentId    идентификатор инструмента для получения лимитов
+     * @return скорректированная цена с учетом лимитов
      */
     private BigDecimal calculatePriceWithDirection(BigDecimal instrumentPrice, BigDecimal percentage,
-            OrderDirection direction) {
-        // Преобразуем процент в десятичную дробь
+            OrderDirection direction, String instrumentId) {
+        logger.debug(
+                "calculatePriceWithDirection вызван: instrumentPrice={}, percentage={}, direction={}, instrumentId={}",
+                instrumentPrice, percentage, direction, instrumentId);
+
+        // Преобразуем процент в десятичную дробь с округлением до 6 знаков
         BigDecimal decimalPercentage = percentage.divide(new BigDecimal("100"), 6, java.math.RoundingMode.HALF_UP);
 
         // Рассчитываем изменение цены от instrumentPrice
         BigDecimal priceChange = instrumentPrice.multiply(decimalPercentage);
 
-        return switch (direction) {
+        // Рассчитываем базовую цену в зависимости от направления
+        BigDecimal basePrice = switch (direction) {
             case ORDER_DIRECTION_SELL -> {
                 // Для продажи добавляем процент (цена выше)
-                yield instrumentPrice.add(priceChange).setScale(2, java.math.RoundingMode.HALF_UP);
+                yield instrumentPrice.add(priceChange);
             }
             case ORDER_DIRECTION_BUY -> {
                 // Для покупки вычитаем процент (цена ниже)
-                yield instrumentPrice.subtract(priceChange).setScale(2, java.math.RoundingMode.HALF_UP);
+                yield instrumentPrice.subtract(priceChange);
             }
             default -> {
                 logger.warn("Неподдерживаемое направление торговли: {}", direction);
                 yield instrumentPrice;
             }
         };
+
+        // Получаем лимиты для инструмента
+        BigDecimal adjustedPrice = applyLimitsToPrice(basePrice, direction, instrumentId);
+
+        // Округляем до 6 знаков после запятой
+        return adjustedPrice.setScale(6, java.math.RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Применяет лимиты инструмента к рассчитанной цене.
+     * 
+     * @param price        рассчитанная цена
+     * @param direction    направление торговли
+     * @param instrumentId идентификатор инструмента
+     * @return цена с учетом лимитов
+     */
+    private BigDecimal applyLimitsToPrice(BigDecimal price, OrderDirection direction, String instrumentId) {
+        logger.debug("applyLimitsToPrice вызван для инструмента {}, цена={}, направление={}", instrumentId, price,
+                direction);
+
+        try {
+            if (tInvestApiService == null) {
+                logger.warn("TInvestApiService недоступен, лимиты не учитываются для инструмента: {}", instrumentId);
+                return price;
+            }
+
+            // Получаем лимиты для инструмента
+            List<BigDecimal> limits = tInvestApiService.getLimitsForInstrument(instrumentId);
+
+            logger.debug("Получены лимиты для инструмента {}: {}", instrumentId, limits);
+
+            if (limits == null || limits.isEmpty() || limits.size() < 2) {
+                logger.warn("Лимиты не найдены для инструмента: {} (получен список: {}), используем рассчитанную цену",
+                        instrumentId, limits);
+                return price;
+            }
+
+            BigDecimal limitDown = limits.get(0);
+            BigDecimal limitUp = limits.get(1);
+
+            logger.debug("Лимиты для инструмента {}: limitDown={}, limitUp={}, текущая цена={}, направление={}",
+                    instrumentId, limitDown, limitUp, price, direction);
+
+            // Применяем лимиты: цена должна быть в диапазоне [limitDown, limitUp]
+            BigDecimal adjustedPrice = price;
+
+            // Проверяем нижний лимит: цена не должна быть ниже limitDown
+            if (limitDown.compareTo(BigDecimal.ZERO) > 0 && price.compareTo(limitDown) < 0) {
+                logger.info("Цена {} ограничена снизу лимитом limitDown={} для инструмента {}",
+                        price, limitDown, instrumentId);
+                adjustedPrice = limitDown;
+            }
+
+            // Проверяем верхний лимит: цена не должна быть выше limitUp
+            if (limitUp.compareTo(BigDecimal.ZERO) > 0 && adjustedPrice.compareTo(limitUp) > 0) {
+                logger.info("Цена {} ограничена сверху лимитом limitUp={} для инструмента {}",
+                        adjustedPrice, limitUp, instrumentId);
+                adjustedPrice = limitUp;
+            }
+
+            return adjustedPrice;
+
+        } catch (Exception e) {
+            logger.error("Ошибка при применении лимитов для инструмента {}: {}", instrumentId, e.getMessage(), e);
+            return price;
+        }
     }
 
     /**
@@ -218,6 +301,7 @@ public class OrderGenerationService {
         }
 
         // Рассчитываем лотность: priceForLevel / adjustedPrice
+        // Используем высокую точность для промежуточных вычислений
         BigDecimal lotRatio = priceForLevel.divide(adjustedPrice, 10, java.math.RoundingMode.HALF_UP);
         int lotSize = lotRatio.setScale(0, java.math.RoundingMode.FLOOR).intValue();
 
@@ -297,10 +381,10 @@ public class OrderGenerationService {
                 return new java.util.AbstractMap.SimpleEntry<>(orders, BigDecimal.ZERO);
             }
 
-            // Рассчитываем базовую цену за уровень
+            // Рассчитываем базовую цену за уровень с округлением до 6 знаков
             BigDecimal priceForLevel = request.amount().divide(
                     new BigDecimal(request.levels().getLevelsCount()),
-                    2,
+                    6,
                     java.math.RoundingMode.HALF_UP);
 
             // Генерируем заявки в зависимости от направления

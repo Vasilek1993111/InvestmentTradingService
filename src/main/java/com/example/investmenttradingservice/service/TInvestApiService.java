@@ -2,11 +2,14 @@ package com.example.investmenttradingservice.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +20,8 @@ import com.example.investmenttradingservice.enums.OrderType;
 import ru.tinkoff.piapi.contract.v1.PostOrderResponse;
 import ru.tinkoff.piapi.contract.v1.Quotation;
 import ru.tinkoff.piapi.core.OrdersService;
+import ru.tinkoff.piapi.core.MarketDataService;
+import ru.tinkoff.piapi.contract.v1.GetOrderBookResponse;
 
 /**
  * TInvestApiService — обертка над официальным Java SDK T-Invest для отправки
@@ -42,8 +47,14 @@ public class TInvestApiService {
     private static final Logger logger = LoggerFactory.getLogger(TInvestApiService.class);
     private static final Logger apiLogger = LoggerFactory.getLogger("com.example.investmenttradingservice.tinvest.api");
 
-    @Autowired
     private OrdersService ordersService;
+
+    private MarketDataService marketDataService;
+
+    public TInvestApiService(OrdersService ordersService, MarketDataService marketDataService) {
+        this.ordersService = ordersService;
+        this.marketDataService = marketDataService;
+    }
 
     @Value("${tinvest.api.token}")
     private String apiToken;
@@ -98,7 +109,7 @@ public class TInvestApiService {
                         price.getNano(), apiToken);
 
                 PostOrderResponse response = ordersService
-                        .postOrder(accountId, quantity, price, direction, instrumentId, orderType, orderId)
+                        .postOrder(instrumentId, quantity, price, direction, accountId, orderType, orderId)
                         .join();
                 String tinvestOrderId = response.getOrderId();
                 if (tinvestOrderId == null || tinvestOrderId.isBlank()) {
@@ -148,7 +159,7 @@ public class TInvestApiService {
         String instrumentId = order.getInstrumentId();
         ru.tinkoff.piapi.contract.v1.OrderType orderType = mapOrderType(order.getOrderType());
         String orderId = order.getOrderId();
-        
+
         return ordersService.postOrder(instrumentId, quantity, price, direction, accountId, orderType, orderId).join();
 
     }
@@ -249,4 +260,47 @@ public class TInvestApiService {
             return errorMessage;
         }
     }
+
+    public List<BigDecimal> getLimitsForInstrument(String instrumentId) {
+        logger.debug("Запрос лимитов для инструмента: {}", instrumentId);
+        try {
+            GetOrderBookResponse limitsResponse = marketDataService.getOrderBook(instrumentId, 1).join();
+            logger.info("Получен ответ OrderBook для инструмента {}: hasLimitUp={}, hasLimitDown={}",
+                    instrumentId, limitsResponse.hasLimitUp(), limitsResponse.hasLimitDown());
+
+            if (limitsResponse.hasLimitUp() && limitsResponse.hasLimitDown()) {
+                Quotation limitUp = limitsResponse.getLimitUp();
+                Quotation limitDown = limitsResponse.getLimitDown();
+
+                BigDecimal limitDownDecimal = toBigDecimal(limitDown);
+                BigDecimal limitUpDecimal = toBigDecimal(limitUp);
+
+                logger.info(
+                        "Лимиты для инструмента {}: limitDown={} (units={}, nano={}), limitUp={} (units={}, nano={})",
+                        instrumentId, limitDownDecimal, limitDown.getUnits(), limitDown.getNano(),
+                        limitUpDecimal, limitUp.getUnits(), limitUp.getNano());
+
+                List<BigDecimal> limits = new LinkedList<>();
+                limits.add(limitDownDecimal);
+                limits.add(limitUpDecimal);
+                return limits;
+            } else {
+                logger.warn("Лимиты не найдены в OrderBook для инструмента {}: hasLimitUp={}, hasLimitDown={}",
+                        instrumentId, limitsResponse.hasLimitUp(), limitsResponse.hasLimitDown());
+            }
+
+        } catch (Exception ex) {
+            logger.error("Ошибка при получении лимитов для инструмента {}: {}", instrumentId, ex.getMessage(), ex);
+
+        }
+        logger.warn("Возвращаем пустой список лимитов для инструмента {}", instrumentId);
+        return Collections.emptyList();
+
+    }
+
+    private BigDecimal toBigDecimal(Quotation quotation) {
+        return BigDecimal.valueOf(quotation.getUnits())
+                .add(BigDecimal.valueOf(quotation.getNano()).divide(BigDecimal.valueOf(10).pow(9)));
+    }
+
 }

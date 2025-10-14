@@ -135,6 +135,10 @@
     <logger name="org.hibernate" level="WARN"/>
     <logger name="org.postgresql" level="WARN"/>
     
+    <!-- Временный DEBUG логгер для диагностики лимитов -->
+    <logger name="com.example.investmenttradingservice.service.OrderGenerationService" level="DEBUG"/>
+    <logger name="com.example.investmenttradingservice.service.TInvestApiService" level="DEBUG"/>
+    
     <!-- Корневой логгер -->
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

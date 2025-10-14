@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "investment-trading-service-api",
         "name": "Investment Trading Service API",
-        "description": "Коллекция для тестирования API инвестиционного торгового сервиса с интеграцией Tinkoff Invest API",
+        "description": "Коллекция для тестирования API инвестиционного торгового сервиса с интеграцией Tinkoff Invest API (обновлено под актуальную версию контроллеров)",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
         "_exporter_id": "investment-trading-service"
     },
@@ -345,7 +345,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"instruments\": [\"BBG000B9XRY4\", \"BBG000B9XRY5\"],\n    \"main_price\": \"open_price\",\n    \"amount\": 10000,\n    \"direction\": \"buy\",\n    \"start_time\": \"10:00:00\",\n    \"levels\": {\n        \"level1\": 5,\n        \"level2\": 10,\n        \"level3\": 15\n    }\n}"
+                            "raw": "{\n    \"instruments\": [\"BBG000B9XRY4\", \"BBG000B9XRY5\"],\n    \"main_price\": \"open_price\",\n    \"amount\": 10000,\n    \"direction\": \"buy\",\n    \"start_time\": \"10:00:00\",\n    \"levels\": {\n        \"level1\": 5.0,\n        \"level2\": 10.0,\n        \"level3\": 15.0\n    }\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/orders/group",
@@ -358,7 +358,57 @@
                                 "group"
                             ]
                         },
-                        "description": "Создание групповой заявки с несколькими инструментами и уровнями"
+                        "description": "Создание групповой заявки с несколькими инструментами и уровнями (возвращает List<OrderDTO>)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Group Order with Price",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"instruments\": [\"BBG000B9XRY4\", \"BBG000B9XRY5\"],\n    \"main_price\": \"open_price\",\n    \"amount\": 10000,\n    \"direction\": \"buy\",\n    \"start_time\": \"10:00:00\",\n    \"levels\": {\n        \"level1\": 5.0,\n        \"level2\": 10.0,\n        \"level3\": 15.0\n    }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/group/with-price",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "group",
+                                "with-price"
+                            ]
+                        },
+                        "description": "Создание групповой заявки с возвратом цены инструмента (возвращает GroupOrderResponseDTO)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Cached Orders",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/orders/cache",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "orders",
+                                "cache"
+                            ]
+                        },
+                        "description": "Получение всех заявок из кэша"
                     },
                     "response": []
                 },
@@ -697,6 +747,8 @@
                                             "    pm.expect(pm.response.json().futures).to.be.an('array');",
                                             "    pm.expect(pm.response.json().lastPrices).to.be.an('array');",
                                             "    pm.expect(pm.response.json().dividends).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().openPrices).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().closePriceEveningSessions).to.be.an('array');",
                                             "});"
                                         ],
                                         "type": "text/javascript"
@@ -810,8 +862,9 @@
                                             "pm.test('Instrument found by FIGI', function () {",
                                             "    pm.response.to.have.status(200);",
                                             "    pm.expect(pm.response.json().success).to.be.true;",
-                                            "    pm.expect(pm.response.json().figi).to.be.a('string');",
-                                            "    pm.expect(pm.response.json().instruments).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().data).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().metadata.figi).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().dataType).to.equal('instruments');",
                                             "});"
                                         ],
                                         "type": "text/javascript"
@@ -845,8 +898,9 @@
                                             "pm.test('Instrument found by FIGI in cache only', function () {",
                                             "    pm.response.to.have.status(200);",
                                             "    pm.expect(pm.response.json().success).to.be.true;",
-                                            "    pm.expect(pm.response.json().cache_only).to.be.true;",
-                                            "    pm.expect(pm.response.json().instruments).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().metadata.cacheOnly).to.be.true;",
+                                            "    pm.expect(pm.response.json().data).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().metadata.searchScope).to.equal('cache_only');",
                                             "});"
                                         ],
                                         "type": "text/javascript"
@@ -908,7 +962,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"instruments\": [\"BBG000B9XRY4\", \"BBG000B9XRY5\"],\n    \"main_price\": \"open_price\",\n    \"amount\": 10000,\n    \"direction\": \"buy\",\n    \"start_time\": \"10:00:00\",\n    \"levels\": {\n        \"level1\": 5,\n        \"level2\": 10,\n        \"level3\": 15\n    }\n}"
+                                    "raw": "{\n    \"instruments\": [\"BBG000B9XRY4\", \"BBG000B9XRY5\"],\n    \"main_price\": \"open_price\",\n    \"amount\": 10000,\n    \"direction\": \"buy\",\n    \"start_time\": \"10:00:00\",\n    \"levels\": {\n        \"level1\": 5.0,\n        \"level2\": 10.0,\n        \"level3\": 15.0\n    }\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/orders/group",
@@ -924,6 +978,55 @@
                             }
                         },
                         {
+                            "name": "1.1. Create Group Order with Price",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "exec": [
+                                            "pm.test('Group order with price created successfully', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "    pm.expect(pm.response.json().orders).to.be.an('array');",
+                                            "    pm.expect(pm.response.json().instrumentPrice).to.be.a('number');",
+                                            "    pm.expect(pm.response.json().orders.length).to.be.greaterThan(0);",
+                                            "    ",
+                                            "    // Сохраняем первый order_id для следующих тестов",
+                                            "    if (pm.response.json().orders.length > 0) {",
+                                            "        pm.globals.set('order_id', pm.response.json().orders[0].orderId);",
+                                            "    }",
+                                            "});"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"instruments\": [\"BBG000B9XRY4\", \"BBG000B9XRY5\"],\n    \"main_price\": \"open_price\",\n    \"amount\": 10000,\n    \"direction\": \"buy\",\n    \"start_time\": \"10:00:00\",\n    \"levels\": {\n        \"level1\": 5.0,\n        \"level2\": 10.0,\n        \"level3\": 15.0\n    }\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/orders/group/with-price",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "orders",
+                                        "group",
+                                        "with-price"
+                                    ]
+                                }
+                            }
+                        },
+                        {
                             "name": "2. Get Created Order",
                             "event": [
                                 {
@@ -932,10 +1035,13 @@
                                         "exec": [
                                             "pm.test('Order retrieved successfully', function () {",
                                             "    pm.response.to.have.status(200);",
-                                            "    pm.expect(pm.response.json().orderId).to.be.a('string');",
-                                            "    pm.expect(pm.response.json().quantity).to.be.a('number');",
-                                            "    pm.expect(pm.response.json().direction).to.be.a('string');",
-                                            "    pm.expect(pm.response.json().instrumentId).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().data).to.be.an('object');",
+                                            "    pm.expect(pm.response.json().data.orderId).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().data.quantity).to.be.a('number');",
+                                            "    pm.expect(pm.response.json().data.direction).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().data.instrumentId).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().message).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().totalCount).to.equal(1);",
                                             "});"
                                         ],
                                         "type": "text/javascript"
@@ -1000,7 +1106,9 @@
                                         "exec": [
                                             "pm.test('Order cancelled successfully', function () {",
                                             "    pm.response.to.have.status(200);",
-                                            "    pm.expect(pm.response.text()).to.include('отменена');",
+                                            "    pm.expect(pm.response.json().data).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().message).to.include('отменена');",
+                                            "    pm.expect(pm.response.json().metadata.newStatus).to.equal('CANCELLED');",
                                             "});"
                                         ],
                                         "type": "text/javascript"
@@ -1033,7 +1141,9 @@
                                         "exec": [
                                             "pm.test('Orders statistics retrieved', function () {",
                                             "    pm.response.to.have.status(200);",
-                                            "    pm.expect(pm.response.text()).to.include('заявок');",
+                                            "    pm.expect(pm.response.json().data).to.be.a('string');",
+                                            "    pm.expect(pm.response.json().message).to.include('статистика');",
+                                            "    pm.expect(pm.response.json().dataType).to.equal('statistics');",
                                             "});"
                                         ],
                                         "type": "text/javascript"
@@ -1091,6 +1201,11 @@
         {
             "key": "order_id",
             "value": "",
+            "type": "string"
+        },
+        {
+            "key": "figi",
+            "value": "BBG000B9XRY4",
             "type": "string"
         }
     ]

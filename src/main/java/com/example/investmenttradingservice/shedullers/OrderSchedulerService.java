@@ -23,12 +23,16 @@ import com.example.investmenttradingservice.exception.BusinessLogicException;
  * Сервис для планирования и отправки заявок по расписанию.
  * 
  * Отвечает за:
- * - Автоматическую отправку заявок в указанное время (start_time)
- * - Мониторинг статуса заявок
+ * - Автоматическую отправку заявок из кэша в указанное время (start_time)
+ * - Перенос просроченных заявок на следующий день
+ * - Логирование событий отправки в БД для аудита
  * - Обработку ошибок при отправке
  * 
+ * Работает исключительно с кэшем заявок. БД используется только для логирования
+ * событий.
+ * 
  * @author Investment Trading Service
- * @version 1.0
+ * @version 2.0
  */
 @Service
 public class OrderSchedulerService {
@@ -49,35 +53,43 @@ public class OrderSchedulerService {
     private com.example.investmenttradingservice.service.OrderCacheService orderCacheService;
 
     /**
-     * Планировщик, который запускается каждую минуту для проверки заявок,
-     * готовых к отправке в текущее время.
+     * Планировщик, который запускается каждую секунду для проверки заявок из кэша.
      * 
-     * Cron выражение: "0 * * * * ?" означает запуск в 0 секунд каждой минуты
+     * Логика работы:
+     * 1. Переносит просроченные заявки на следующий день
+     * 2. Отправляет заявки с точным временем в T-Invest API
+     * 3. Логирует события отправки в БД для аудита
+     * 4. Удаляет отправленные заявки из кэша
+     * 
      */
-    @Scheduled(cron = "*/1 * * * * *")
+
+    @Scheduled(cron = "1 * * * * *")
     public void processScheduledOrders() {
         try {
-            LocalTime currentTime = LocalTime.now();
+            // Используем московскую таймзону и нормализуем до секунд
+            LocalTime currentTime = LocalTime
+                    .now(com.example.investmenttradingservice.util.TimeZoneUtils.getMoscowZone())
+                    .withSecond(0).withNano(0);
             logger.debug("Проверка заявок для отправки в время: {}", currentTime);
 
-            // Получаем все заявки, готовые к отправке в текущее время
-            List<OrderEntity> ordersToSend = orderPersistenceService.findOrdersReadyToSend(currentTime);
+            // Сначала обрабатываем просроченные заявки - переносим их на следующий день
+            int rescheduledCount = orderCacheService.rescheduleOverdueOrders(currentTime);
+            if (rescheduledCount > 0) {
+                logger.info("Перенесено {} просроченных заявок на следующий день", rescheduledCount);
+            }
 
-            if (ordersToSend.isEmpty()) {
-                logger.debug("Нет заявок для отправки в время: {}", currentTime);
+            // Получаем заявки с точным временем (не просроченные) из кэша
+            List<OrderEntity> exactTimeOrders = orderCacheService.getExactTimeOrders(currentTime);
+
+            if (exactTimeOrders.isEmpty()) {
+                logger.debug("Нет заявок для отправки в точное время: {}", currentTime);
                 return;
             }
 
-            logger.info("Найдено {} заявок для отправки в время: {}", ordersToSend.size(), currentTime);
+            logger.info("Найдено {} заявок для отправки в точное время: {}", exactTimeOrders.size(), currentTime);
 
-            // Читаем заявки из кэша, а не из БД
-            List<OrderEntity> cachedDue = orderCacheService.getDue(currentTime);
-            if (cachedDue.isEmpty()) {
-                logger.debug("В кэше нет заявок к отправке на {}", currentTime);
-                return;
-            }
-
-            for (OrderEntity order : cachedDue) {
+            // Отправляем заявки с точным временем из кэша
+            for (OrderEntity order : exactTimeOrders) {
                 CompletableFuture.runAsync(() -> {
                     // Задержка 100мс перед отправкой
                     try {
@@ -95,45 +107,8 @@ public class OrderSchedulerService {
     }
 
     /**
-     * Обрабатывает одну заявку - отправляет её в T-Invest API.
-     * 
-     * @param order заявка для отправки
-     */
-    private void processSingleOrder(OrderEntity order) {
-        try {
-            logger.info("Отправка заявки ID: {}, инструмент: {}, направление: {}, количество: {}, цена: {}",
-                    order.getOrderId(),
-                    order.getInstrumentId(),
-                    order.getDirection(),
-                    order.getQuantity(),
-                    formatPrice(order.getPrice()));
-
-            // Отправка заявки через T-Invest API
-            TInvestApiService.TInvestApiResponse response = tInvestApiService.sendOrder(order);
-
-            if (response.isSuccess()) {
-                logger.info("Заявка ID {} успешно отправлена в T-Invest API, Order ID: {}",
-                        order.getOrderId(), response.getOrderId());
-                orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.SENT,
-                        response.getOrderId(), null);
-            } else {
-                logger.error("Ошибка отправки заявки ID {} в T-Invest API: {}",
-                        order.getOrderId(), response.getErrorMessage());
-                orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.ERROR,
-                        null, response.getErrorMessage());
-            }
-
-        } catch (Exception e) {
-            logger.error("Ошибка при отправке заявки ID {}: {}", order.getOrderId(), e.getMessage(), e);
-
-            // Помечаем заявку как ошибочную
-            orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.ERROR,
-                    null, "Ошибка отправки: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Обрабатывает заявку из кэша: отправляет, обновляет БД, затем удаляет из кэша.
+     * Обрабатывает заявку из кэша: отправляет в T-Invest API, логирует событие в
+     * БД, удаляет из кэша.
      */
     private void processSingleOrderFromCache(OrderEntity order) {
         try {
@@ -144,22 +119,36 @@ public class OrderSchedulerService {
             TInvestApiService.TInvestApiResponse response = tInvestApiService.sendOrder(order);
 
             if (response.isSuccess()) {
-                logger.info("[CACHE] Заявка ID {} успешно отправлена, Order ID: {}", order.getOrderId(),
-                        response.getOrderId());
+                logger.info("[CACHE] Заявка ID {} успешно отправлена, T-Invest Order ID: {}",
+                        order.getOrderId(), response.getOrderId());
+
+                // Логируем событие успешной отправки в БД (только для аудита)
                 orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.SENT, response.getOrderId(),
                         null);
+
+                // Удаляем из кэша после успешной отправки
                 orderCacheService.remove(order.getOrderId());
+
             } else {
                 logger.error("[CACHE] Ошибка отправки заявки ID {}: {}", order.getOrderId(),
                         response.getErrorMessage());
+
+                // Логируем событие ошибки в БД (только для аудита)
                 orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.ERROR, null,
                         response.getErrorMessage());
+
+                // Удаляем из кэша даже при ошибке (заявка не будет повторно отправлена)
                 orderCacheService.remove(order.getOrderId());
             }
+
         } catch (Exception e) {
             logger.error("[CACHE] Ошибка при отправке заявки ID {}: {}", order.getOrderId(), e.getMessage(), e);
+
+            // Логируем событие исключения в БД (только для аудита)
             orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.ERROR, null,
                     "Ошибка отправки: " + e.getMessage());
+
+            // Удаляем из кэша при исключении
             orderCacheService.remove(order.getOrderId());
         }
     }
@@ -179,27 +168,28 @@ public class OrderSchedulerService {
     }
 
     /**
-     * Принудительная отправка заявки по её ID.
+     * Принудительная отправка заявки по её ID из кэша.
      * Используется для ручной отправки или повторной отправки.
      * 
      * @param orderId ID заявки для отправки
-     * @return true если заявка найдена и обработана, false иначе
+     * @return true если заявка найдена в кэше и обработана, false иначе
      */
     public boolean sendOrderById(String orderId) {
         try {
-            OrderEntity order = orderPersistenceService.findOrderByOrderId(orderId).orElse(null);
+            // Ищем заявку в кэше
+            List<OrderEntity> allOrders = orderCacheService.getAllEntities();
+            OrderEntity order = allOrders.stream()
+                    .filter(o -> orderId.equals(o.getOrderId()))
+                    .findFirst()
+                    .orElse(null);
+
             if (order == null) {
-                logger.warn("Заявка с ID {} не найдена", orderId);
+                logger.warn("Заявка с ID {} не найдена в кэше", orderId);
                 return false;
             }
 
-            if (order.getStatus() != OrderStatus.PENDING) {
-                logger.warn("Заявка ID {} уже обработана, текущий статус: {}", orderId, order.getStatus());
-                return false;
-            }
-
-            logger.info("Принудительная отправка заявки ID: {}", orderId);
-            processSingleOrder(order);
+            logger.info("Принудительная отправка заявки ID: {} из кэша", orderId);
+            processSingleOrderFromCache(order);
             return true;
 
         } catch (Exception e) {
@@ -209,16 +199,23 @@ public class OrderSchedulerService {
     }
 
     /**
-     * Принудительная отправка заявки и возврат сырого ответа T-API.
+     * Принудительная отправка заявки из кэша и возврат сырого ответа T-API.
      */
     public ru.tinkoff.piapi.contract.v1.PostOrderResponse forceSendOrderRaw(String orderId) {
         try {
-            OrderEntity order = orderPersistenceService.findOrderByOrderId(orderId).orElse(null);
+            // Ищем заявку в кэше
+            List<OrderEntity> allOrders = orderCacheService.getAllEntities();
+            OrderEntity order = allOrders.stream()
+                    .filter(o -> orderId.equals(o.getOrderId()))
+                    .findFirst()
+                    .orElse(null);
+
             if (order == null) {
                 throw new BusinessLogicException(
-                        String.format("Заявка с ID '%s' не найдена", orderId),
+                        String.format("Заявка с ID '%s' не найдена в кэше", orderId),
                         "ORDER_NOT_FOUND");
             }
+
             if (!order.isReadyToSend()) {
                 throw new BusinessLogicException(
                         String.format(
@@ -226,17 +223,26 @@ public class OrderSchedulerService {
                                 orderId),
                         "ORDER_NOT_READY");
             }
+
             ru.tinkoff.piapi.contract.v1.PostOrderResponse resp = tInvestApiService.sendOrderRaw(order);
+
+            // Логируем событие успешной отправки в БД (только для аудита)
             orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.SENT, resp.getOrderId(), null);
+
+            // Удаляем из кэша после успешной отправки
             orderCacheService.remove(order.getOrderId());
+
             return resp;
+
         } catch (Exception e) {
             logger.error("Ошибка при принудительной отправке (raw) {}: {}", orderId, e.getMessage(), e);
-            // фиксация ошибки в БД
+
+            // Логируем событие ошибки в БД (только для аудита)
             try {
                 orderPersistenceService.updateOrderStatus(orderId, OrderStatus.ERROR, null, e.getMessage());
             } catch (Exception ignore) {
             }
+
             throw new BusinessLogicException(
                     String.format("T-Invest API ошибка при отправке заявки '%s': %s", orderId, e.getMessage()),
                     "TINVEST_API_ERROR");
@@ -244,13 +250,37 @@ public class OrderSchedulerService {
     }
 
     /**
-     * Получает статистику по запланированным заявкам.
+     * Получает статистику по заявкам в кэше.
      * 
      * @return строка со статистикой
      */
     public String getSchedulerStatistics() {
         try {
-            return orderPersistenceService.getOrdersStatistics();
+            List<OrderEntity> allOrders = orderCacheService.getAllEntities();
+
+            if (allOrders.isEmpty()) {
+                return "Кэш заявок пуст";
+            }
+
+            StringBuilder stats = new StringBuilder();
+            stats.append("Статистика кэша заявок:\n");
+            stats.append("Всего заявок в кэше: ").append(allOrders.size()).append("\n");
+
+            // Группируем по времени
+            var ordersByTime = allOrders.stream()
+                    .collect(java.util.stream.Collectors.groupingBy(OrderEntity::getScheduledTime));
+
+            stats.append("Заявки по времени:\n");
+            ordersByTime.entrySet().stream()
+                    .sorted(java.util.Map.Entry.comparingByKey())
+                    .forEach(entry -> {
+                        stats.append("  ").append(entry.getKey())
+                                .append(": ").append(entry.getValue().size())
+                                .append(" заявок\n");
+                    });
+
+            return stats.toString();
+
         } catch (Exception e) {
             logger.error("Ошибка при получении статистики планировщика: {}", e.getMessage(), e);
             return "Ошибка получения статистики";

@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import ru.tinkoff.piapi.core.InvestApi;
+import ru.tinkoff.piapi.core.MarketDataService;
 import ru.tinkoff.piapi.core.OrdersService;
 
 /**
@@ -38,8 +39,7 @@ public class TinkoffApiConfig {
         if (apiToken == null || apiToken.isEmpty()) {
             throw new IllegalStateException("T-Invest API token is not configured (property 'tinvest.api.token').");
         }
-        // Печатаем токен полностью (НЕБЕЗОПАСНО)
-        logger.info("Инициализация InvestApi (PROD), token={}", apiToken);
+        
         return InvestApi.create(apiToken);
     }
 
@@ -52,6 +52,11 @@ public class TinkoffApiConfig {
     @Bean
     public OrdersService ordersService(InvestApi investApi) {
         return investApi.getOrdersService();
+    }
+
+    @Bean
+    public MarketDataService marketDataService(InvestApi investApi) {
+        return investApi.getMarketDataService();
     }
 
 }
