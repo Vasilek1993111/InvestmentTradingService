@@ -83,29 +83,6 @@ public class OrderCacheService {
     }
 
     /**
-     * Возвращает заявки, время которых наступило (<= currentTime).
-     * 
-     * @deprecated Используйте getExactTimeOrders для точного времени
-     */
-    @Deprecated
-    public List<OrderEntity> getDue(LocalTime currentTime) {
-        if (idsByTime.isEmpty())
-            return List.of();
-        List<OrderEntity> due = new ArrayList<>();
-        idsByTime.headMap(currentTime, true).forEach((time, idSet) -> {
-            synchronized (idSet) {
-                for (String id : idSet) {
-                    OrderEntity e = orderById.get(id);
-                    if (e != null) {
-                        due.add(e);
-                    }
-                }
-            }
-        });
-        return due;
-    }
-
-    /**
      * Возвращает заявки с точным временем (не просроченные).
      * 
      * @param exactTime точное время для поиска заявок
@@ -131,65 +108,6 @@ public class OrderCacheService {
         }
 
         return exactOrders;
-    }
-
-    /**
-     * Возвращает просроченные заявки (время которых уже прошло).
-     * 
-     * @param currentTime текущее время
-     * @return список просроченных заявок
-     */
-    public List<OrderEntity> getOverdueOrders(LocalTime currentTime) {
-        if (idsByTime.isEmpty()) {
-            return List.of();
-        }
-
-        List<OrderEntity> overdueOrders = new ArrayList<>();
-        idsByTime.headMap(currentTime, false).forEach((time, idSet) -> {
-            synchronized (idSet) {
-                for (String id : idSet) {
-                    OrderEntity e = orderById.get(id);
-                    if (e != null) {
-                        overdueOrders.add(e);
-                    }
-                }
-            }
-        });
-
-        return overdueOrders;
-    }
-
-    /**
-     * Переносит просроченные заявки на следующий день (оставляет то же время).
-     * 
-     * @param currentTime текущее время
-     * @return количество перенесенных заявок
-     */
-    public int rescheduleOverdueOrders(LocalTime currentTime) {
-        List<OrderEntity> overdueOrders = getOverdueOrders(currentTime);
-
-        if (overdueOrders.isEmpty()) {
-            logger.debug("Нет просроченных заявок в кэше для переноса на следующий день");
-            return 0;
-        }
-
-        int rescheduledCount = 0;
-        for (OrderEntity order : overdueOrders) {
-            // Удаляем из кэша
-            remove(order.getOrderId());
-
-            // Логируем перенос (в реальной системе можно добавить поле для отслеживания
-            // даты)
-            logger.info("Перенос заявки ID {} с времени {} на следующий день (время остается то же)",
-                    order.getOrderId(), order.getScheduledTime());
-
-            // Заявка будет автоматически добавлена в кэш на следующий день
-            // через систему планирования или вручную
-            rescheduledCount++;
-        }
-
-        logger.info("Перенесено {} просроченных заявок из кэша на следующий день", rescheduledCount);
-        return rescheduledCount;
     }
 
     /**

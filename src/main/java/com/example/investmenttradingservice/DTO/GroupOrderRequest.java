@@ -1,6 +1,7 @@
 package com.example.investmenttradingservice.DTO;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -20,27 +21,19 @@ import java.util.List;
  * @param start_time  Время начала исполнения в формате HH:mm:ss
  */
 public record GroupOrderRequest(
-        @NotEmpty(message = "Список инструментов не может быть пустым") 
-        List<String> instruments,
+        @NotEmpty(message = "Список инструментов не может быть пустым") List<String> instruments,
 
-        @NotBlank(message = "Опорная цена не может быть пустой") 
-        String main_price,
+        @NotBlank(message = "Опорная цена не может быть пустой") String main_price,
 
-        
-        @NotBlank(message = "Сумма не может быть пустой") 
-        BigDecimal amount,
+        @NotBlank(message = "Сумма не может быть пустой") BigDecimal amount,
 
-        @NotBlank(message = "Направление торговли не может быть пустым") @Pattern(regexp = "^(buy|sell|all)$", message = "Направление торговли должно быть: buy, sell или all")
-        String direction,
+        @NotBlank(message = "Направление торговли не может быть пустым") @Pattern(regexp = "^(buy|sell|all)$", message = "Направление торговли должно быть: buy, sell или all") String direction,
 
-        @NotNull(message = "Время начала не может быть null") @JsonFormat(pattern = "HH:mm:ss") 
-        LocalTime start_time,
+        @NotNull(message = "Время начала не может быть null") @JsonFormat(pattern = "HH:mm:ss") @JsonDeserialize(using = com.example.investmenttradingservice.util.LocalTimeOrNowDeserializer.class) LocalTime start_time,
 
-        @NotBlank(message = "Должен быть хотя бы один уровень")
-        LevelsDTO levels
-        ) 
-        
-        {
+        @NotBlank(message = "Должен быть хотя бы один уровень") LevelsDTO levels)
+
+{
 
     /**
      * Проверяет, является ли направление покупкой.

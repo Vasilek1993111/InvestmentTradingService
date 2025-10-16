@@ -30,7 +30,7 @@ public class OrderMapper {
 
         // Преобразуем цену из QuotationDTO в BigDecimal
         if (orderDTO.price() != null) {
-            entity.setPrice(orderDTO.price().toBigDecimal());
+            entity.setPrice(orderDTO.price().toBigDecimal().setScale(6, java.math.RoundingMode.HALF_UP));
         }
 
         entity.setDirection(orderDTO.direction());
@@ -87,7 +87,7 @@ public class OrderMapper {
 
         // Обновляем цену
         if (orderDTO.price() != null) {
-            entity.setPrice(orderDTO.price().toBigDecimal());
+            entity.setPrice(orderDTO.price().toBigDecimal().setScale(6, java.math.RoundingMode.HALF_UP));
         }
 
         entity.setDirection(orderDTO.direction());

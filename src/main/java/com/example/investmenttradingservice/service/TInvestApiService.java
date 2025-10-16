@@ -182,7 +182,10 @@ public class TInvestApiService {
             // Нулевая цена для совместимости (рынок может игнорировать)
             return Quotation.newBuilder().setUnits(0).setNano(0).build();
         }
-        BigDecimal scaled = price.setScale(9, RoundingMode.HALF_UP);
+        // Нормализуем до 6 знаков для доменной логики, затем расширяем до 9 для
+        // Quotation
+        BigDecimal six = price.setScale(6, RoundingMode.HALF_UP);
+        BigDecimal scaled = six.setScale(9, RoundingMode.HALF_UP);
         long units = scaled.longValue();
         BigDecimal nanosPart = scaled.subtract(BigDecimal.valueOf(units)).movePointRight(9);
         int nanos = nanosPart.intValue();
@@ -299,8 +302,10 @@ public class TInvestApiService {
     }
 
     private BigDecimal toBigDecimal(Quotation quotation) {
-        return BigDecimal.valueOf(quotation.getUnits())
-                .add(BigDecimal.valueOf(quotation.getNano()).divide(BigDecimal.valueOf(10).pow(9)));
+        BigDecimal value = BigDecimal.valueOf(quotation.getUnits())
+                .add(BigDecimal.valueOf(quotation.getNano()).divide(BigDecimal.valueOf(10).pow(9), 9,
+                        RoundingMode.HALF_UP));
+        return value.setScale(6, RoundingMode.HALF_UP);
     }
 
 }

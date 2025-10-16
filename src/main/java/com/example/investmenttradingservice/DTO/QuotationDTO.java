@@ -23,12 +23,13 @@ public record QuotationDTO(
         if (price == null) {
             return new QuotationDTO(0L, 0);
         }
+        // Нормализуем до 6 знаков после запятой
+        BigDecimal normalized = price.setScale(6, java.math.RoundingMode.HALF_UP);
 
-        // Получаем целую часть
-        long units = price.longValue();
-
-        // Получаем дробную часть (nano = 9 знаков после запятой)
-        BigDecimal fractionalPart = price.subtract(BigDecimal.valueOf(units));
+        long units = normalized.longValue();
+        BigDecimal fractionalPart = normalized.subtract(BigDecimal.valueOf(units));
+        // Храним nano в 9-значном формате (совместимо с Quotation), но дробь уже 6
+        // знаков
         BigDecimal nanoDecimal = fractionalPart.multiply(BigDecimal.valueOf(1_000_000_000L));
         int nano = nanoDecimal.intValue();
 
@@ -41,9 +42,10 @@ public record QuotationDTO(
      * @return BigDecimal цена
      */
     public BigDecimal toBigDecimal() {
-        return BigDecimal.valueOf(units)
+        BigDecimal value = BigDecimal.valueOf(units)
                 .add(BigDecimal.valueOf(nano).divide(BigDecimal.valueOf(1_000_000_000L), 9,
                         java.math.RoundingMode.HALF_UP));
+        return value.setScale(6, java.math.RoundingMode.HALF_UP);
     }
 
     /**

@@ -12,10 +12,10 @@ import com.example.investmenttradingservice.exception.BusinessLogicException;
 import com.example.investmenttradingservice.enums.OrderStatus;
 import com.example.investmenttradingservice.service.DelayedOrderService;
 import com.example.investmenttradingservice.service.OrderPersistenceService;
+import com.example.investmenttradingservice.service.OrderGenerationService;
 import com.example.investmenttradingservice.shedullers.OrderSchedulerService;
 import com.example.investmenttradingservice.service.OrderCacheService;
 import com.example.investmenttradingservice.service.TInvestApiService;
-import com.example.investmenttradingservice.entity.OrderEntity;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,6 +62,9 @@ public class OrderController {
     @Autowired
     private OrderCacheService orderCacheService;
 
+    @Autowired
+    private OrderGenerationService orderGenerationService;
+
     /**
      * Создает групповую заявку.
      * 
@@ -78,15 +81,23 @@ public class OrderController {
 
             if (orders.isEmpty()) {
                 logger.warn("Не удалось создать заявки для группового запроса");
-                return ResponseEntity.badRequest().body(List.of());
+                throw new BusinessLogicException(
+                        "Не удалось создать заявки для группового запроса",
+                        "ORDERS_NOT_CREATED");
             }
 
             logger.info("Создано {} заявок для группового запроса", orders.size());
             return ResponseEntity.ok(orders);
 
+        } catch (com.example.investmenttradingservice.exception.ValidationException e) {
+            logger.warn("Валидация не пройдена для групповой заявки: {}", e.getMessage());
+            throw e;
+        } catch (com.example.investmenttradingservice.exception.BusinessLogicException e) {
+            logger.warn("Бизнес-логика не пройдена для групповой заявки: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
-            logger.error("Ошибка при создании групповой заявки: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(List.of());
+            logger.error("Неожиданная ошибка при создании групповой заявки: {}", e.getMessage(), e);
+            throw new RuntimeException("Внутренняя ошибка при создании групповой заявки", e);
         }
     }
 
@@ -97,25 +108,72 @@ public class OrderController {
      * @return ответ с заявками и ценой инструмента из main_price поля
      */
     @PostMapping("/group/with-price")
-    public ResponseEntity<GroupOrderResponseDTO> createGroupOrderWithPrice(@RequestBody GroupOrderRequest request) {
+    public ResponseEntity<GroupOrderResponseDTO> createGroupOrderWithPrice(
+            @RequestBody com.example.investmenttradingservice.DTO.SingleOrderRequest request) {
         try {
-            logger.info("Создание групповой заявки с ценой для {} инструментов, время: {}, main_price: {}",
-                    request.instruments().size(), request.start_time(), request.main_price());
+            logger.info("Создание заявки с ценой (один инструмент): instrument={}, время={}",
+                    request.instrument(), request.start_time());
 
-            GroupOrderResponseDTO response = delayedOrderService.processGroupOrderWithPrice(request);
+            // Обработка через сервис: персистенция + немедленная отправка при "now"
+            List<OrderDTO> orders = delayedOrderService.processSingleOrderWithPrice(request);
 
-            if (response.orders().isEmpty()) {
-                logger.warn("Не удалось создать заявки для группового запроса");
-                return ResponseEntity.badRequest().body(GroupOrderResponseDTO.empty());
+            if (orders.isEmpty()) {
+                logger.warn("Не удалось создать заявки для инструмента");
+                throw new BusinessLogicException(
+                        "Не удалось создать заявки для инструмента",
+                        "ORDERS_NOT_CREATED");
             }
 
-            logger.info("Создано {} заявок для группового запроса, цена инструмента: {}",
-                    response.orders().size(), response.instrumentPrice());
+            GroupOrderResponseDTO response = GroupOrderResponseDTO.of(orders, java.math.BigDecimal.ZERO);
+            logger.info("Создано {} заявок для инструмента {}", response.orders().size(), request.instrument());
             return ResponseEntity.ok(response);
 
+        } catch (com.example.investmenttradingservice.exception.ValidationException e) {
+            logger.warn("Валидация не пройдена для инструмента {}: {}", request.instrument(), e.getMessage());
+            throw e;
+        } catch (com.example.investmenttradingservice.exception.BusinessLogicException e) {
+            logger.warn("Бизнес-логика не пройдена для инструмента {}: {}", request.instrument(), e.getMessage());
+            throw e;
         } catch (Exception e) {
-            logger.error("Ошибка при создании групповой заявки с ценой: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(GroupOrderResponseDTO.empty());
+            logger.error("Неожиданная ошибка при создании заявки с ценой для инструмента {}: {}", request.instrument(),
+                    e.getMessage(), e);
+            throw new RuntimeException("Внутренняя ошибка при создании заявки с ценой", e);
+        }
+    }
+
+    /**
+     * Создает заявки для одного инструмента, когда уровни — это финальные цены.
+     */
+    @PostMapping("/single/with-price")
+    public ResponseEntity<List<OrderDTO>> createSingleOrderWithPrice(
+            @RequestBody com.example.investmenttradingservice.DTO.SingleOrderRequest request) {
+        try {
+            logger.info("Создание одиночной(группы) заявки для инструмента {}, уровни как цены, время: {}",
+                    request.instrument(), request.start_time());
+
+            // Обработка через сервис: персистенция + немедленная отправка при "now"
+            List<OrderDTO> orders = delayedOrderService.processSingleOrderWithPrice(request);
+
+            if (orders.isEmpty()) {
+                throw new BusinessLogicException("Не удалось создать заявки для инструмента", "ORDERS_NOT_CREATED");
+            }
+
+            // Немедленная отправка при now аналогична групповой логике — используем сервис
+            // для консистентности: обрабатываем через DelayedOrderService API
+            // (валидация и немедленная отправка там уже реализованы, если нужно — можно
+            // дублировать)
+
+            return ResponseEntity.ok(orders);
+        } catch (com.example.investmenttradingservice.exception.ValidationException e) {
+            logger.warn("Валидация не пройдена для инструмента {}: {}", request.instrument(), e.getMessage());
+            throw e;
+        } catch (com.example.investmenttradingservice.exception.BusinessLogicException e) {
+            logger.warn("Бизнес-логика не пройдена для инструмента {}: {}", request.instrument(), e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            logger.error("Неожиданная ошибка при создании заявок для инструмента {}: {}", request.instrument(),
+                    e.getMessage(), e);
+            throw new RuntimeException("Внутренняя ошибка при создании заявки для инструмента", e);
         }
     }
 
@@ -134,7 +192,7 @@ public class OrderController {
             return ResponseEntity.ok(cached);
         } catch (Exception e) {
             logger.error("Ошибка при получении заявок из кэша: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(List.of());
+            throw new RuntimeException("Внутренняя ошибка при получении заявок из кэша", e);
         }
     }
 
@@ -283,6 +341,13 @@ public class OrderController {
 
             boolean updated = orderPersistenceService.updateOrderStatus(orderId, OrderStatus.CANCELLED, null, null);
             if (updated) {
+                // Удаляем заявку из кэша, чтобы планировщик не обработал её
+                try {
+                    orderCacheService.remove(orderId);
+                } catch (Exception removeEx) {
+                    logger.warn("Не удалось удалить заявку {} из кэша после отмены: {}", orderId,
+                            removeEx.getMessage());
+                }
                 ApiSuccessResponse<String> response = ApiSuccessResponse.<String>builder()
                         .message("Заявка успешно отменена")
                         .data("Заявка отменена и больше не будет отправлена")
@@ -345,6 +410,13 @@ public class OrderController {
             boolean deleted = orderPersistenceService.deleteOrder(orderId);
 
             if (deleted) {
+                // Удаляем заявку из кэша, если она там есть
+                try {
+                    orderCacheService.remove(orderId);
+                } catch (Exception removeEx) {
+                    logger.warn("Не удалось удалить заявку {} из кэша после удаления из БД: {}", orderId,
+                            removeEx.getMessage());
+                }
                 ApiSuccessResponse<String> response = ApiSuccessResponse.<String>builder()
                         .message("Заявка успешно удалена")
                         .data("Заявка полностью удалена из системы")
@@ -385,10 +457,13 @@ public class OrderController {
 
         } catch (IllegalArgumentException e) {
             logger.warn("Некорректный статус заявки: {}", status);
-            return ResponseEntity.badRequest().body(List.of());
+            throw new ValidationException(
+                    String.format("Некорректный статус заявки: %s", status),
+                    "status",
+                    status);
         } catch (Exception e) {
             logger.error("Ошибка при получении заявок по статусу {}: {}", status, e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(List.of());
+            throw new RuntimeException("Внутренняя ошибка при получении заявок по статусу", e);
         }
     }
 
@@ -407,7 +482,10 @@ public class OrderController {
 
         } catch (Exception e) {
             logger.error("Ошибка при получении заявок готовых к отправке в {}: {}", time, e.getMessage(), e);
-            return ResponseEntity.badRequest().body(List.of());
+            throw new ValidationException(
+                    String.format("Некорректный формат времени: %s (ожидается HH:mm:ss)", time),
+                    "time",
+                    time);
         }
     }
 
@@ -476,7 +554,7 @@ public class OrderController {
 
         } catch (Exception e) {
             logger.error("Ошибка при получении заявок с ошибками: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(List.of());
+            throw new RuntimeException("Внутренняя ошибка при получении заявок с ошибками", e);
         }
     }
 
@@ -492,45 +570,4 @@ public class OrderController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Тестирование логики переноса просроченных заявок
-     */
-    @GetMapping("/test-reschedule/{currentTime}")
-    public ResponseEntity<Map<String, Object>> testRescheduleLogic(@PathVariable String currentTime) {
-        Map<String, Object> response = new HashMap<>();
-
-        try {
-            LocalTime time = LocalTime.parse(currentTime);
-
-            // Получаем просроченные заявки из кэша
-            List<OrderEntity> overdueOrders = orderCacheService.getOverdueOrders(time);
-            response.put("overdueOrdersCount", overdueOrders.size());
-            response.put("overdueOrders", overdueOrders.stream()
-                    .map(order -> Map.of(
-                            "orderId", order.getOrderId(),
-                            "scheduledTime", order.getScheduledTime(),
-                            "instrumentId", order.getInstrumentId()))
-                    .toList());
-
-            // Получаем заявки с точным временем
-            List<OrderEntity> exactTimeOrders = orderCacheService.getExactTimeOrders(time);
-            response.put("exactTimeOrdersCount", exactTimeOrders.size());
-            response.put("exactTimeOrders", exactTimeOrders.stream()
-                    .map(order -> Map.of(
-                            "orderId", order.getOrderId(),
-                            "scheduledTime", order.getScheduledTime(),
-                            "instrumentId", order.getInstrumentId()))
-                    .toList());
-
-            // Тестируем перенос просроченных заявок
-            int rescheduledCount = orderCacheService.rescheduleOverdueOrders(time);
-            response.put("rescheduledCount", rescheduledCount);
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            response.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(response);
-        }
-    }
 }

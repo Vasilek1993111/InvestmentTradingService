@@ -65,6 +65,47 @@ public class OrderGenerationService {
         }
     }
 
+    // Удалено: generateOrdersWithDirectLevelPrices - заменён на
+    // generateSingleInstrumentWithDirectLevelPrices
+
+    /**
+     * Генерирует заявки для одного инструмента, когда уровни — это финальные цены.
+     * Использует ту же логику распределения суммы и расчёта лотности.
+     */
+    public List<OrderDTO> generateSingleInstrumentWithDirectLevelPrices(String instrumentId, String directionRaw,
+            java.math.BigDecimal amount, com.example.investmenttradingservice.DTO.LevelsDTO levels,
+            java.time.LocalTime startTime) {
+        com.example.investmenttradingservice.enums.OrderDirection direction = switch (directionRaw.toLowerCase()) {
+            case "buy" -> com.example.investmenttradingservice.enums.OrderDirection.ORDER_DIRECTION_BUY;
+            case "sell" -> com.example.investmenttradingservice.enums.OrderDirection.ORDER_DIRECTION_SELL;
+            default -> com.example.investmenttradingservice.enums.OrderDirection.ORDER_DIRECTION_BUY;
+        };
+
+        List<OrderDTO> orders = new ArrayList<>();
+
+        java.math.BigDecimal priceForLevel = amount.divide(new java.math.BigDecimal(levels.getLevelsCount()), 6,
+                java.math.RoundingMode.HALF_UP);
+
+        for (int level = 1; level <= levels.getLevelsCount(); level++) {
+            java.math.BigDecimal levelPrice = levels.getLevelValue(level);
+            if (levelPrice == null) {
+                continue;
+            }
+
+            java.math.BigDecimal normalizedLevelPrice = levelPrice.setScale(6, java.math.RoundingMode.HALF_UP);
+            java.math.BigDecimal adjustedPrice = applyLimitsToPrice(normalizedLevelPrice, direction, instrumentId)
+                    .setScale(6, java.math.RoundingMode.HALF_UP);
+
+            int lotSize = calculateLotSize(priceForLevel, adjustedPrice);
+            if (lotSize > 0) {
+                orders.add(OrderDTO.create(lotSize, adjustedPrice, direction, accountId, instrumentId, startTime));
+            }
+        }
+        return orders;
+    }
+
+    // Удалено: generateOrdersForInstrumentWithDirectPrices - больше не используется
+
     /**
      * Генерирует заявки для конкретного инструмента.
      * 
@@ -202,7 +243,8 @@ public class OrderGenerationService {
         BigDecimal decimalPercentage = percentage.divide(new BigDecimal("100"), 6, java.math.RoundingMode.HALF_UP);
 
         // Рассчитываем изменение цены от instrumentPrice
-        BigDecimal priceChange = instrumentPrice.multiply(decimalPercentage);
+        BigDecimal priceChange = instrumentPrice.multiply(decimalPercentage).setScale(6,
+                java.math.RoundingMode.HALF_UP);
 
         // Рассчитываем базовую цену в зависимости от направления
         BigDecimal basePrice = switch (direction) {
@@ -221,7 +263,8 @@ public class OrderGenerationService {
         };
 
         // Получаем лимиты для инструмента
-        BigDecimal adjustedPrice = applyLimitsToPrice(basePrice, direction, instrumentId);
+        BigDecimal adjustedPrice = applyLimitsToPrice(basePrice, direction, instrumentId).setScale(6,
+                java.math.RoundingMode.HALF_UP);
 
         // Округляем до 6 знаков после запятой
         return adjustedPrice.setScale(6, java.math.RoundingMode.HALF_UP);

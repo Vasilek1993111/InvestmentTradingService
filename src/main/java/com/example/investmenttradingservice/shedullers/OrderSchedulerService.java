@@ -24,7 +24,6 @@ import com.example.investmenttradingservice.exception.BusinessLogicException;
  * 
  * Отвечает за:
  * - Автоматическую отправку заявок из кэша в указанное время (start_time)
- * - Перенос просроченных заявок на следующий день
  * - Логирование событий отправки в БД для аудита
  * - Обработку ошибок при отправке
  * 
@@ -56,10 +55,9 @@ public class OrderSchedulerService {
      * Планировщик, который запускается каждую секунду для проверки заявок из кэша.
      * 
      * Логика работы:
-     * 1. Переносит просроченные заявки на следующий день
-     * 2. Отправляет заявки с точным временем в T-Invest API
-     * 3. Логирует события отправки в БД для аудита
-     * 4. Удаляет отправленные заявки из кэша
+     * 1. Отправляет заявки с точным временем в T-Invest API
+     * 2. Логирует события отправки в БД для аудита
+     * 3. Удаляет отправленные заявки из кэша
      * 
      */
 
@@ -72,11 +70,8 @@ public class OrderSchedulerService {
                     .withSecond(0).withNano(0);
             logger.debug("Проверка заявок для отправки в время: {}", currentTime);
 
-            // Сначала обрабатываем просроченные заявки - переносим их на следующий день
-            int rescheduledCount = orderCacheService.rescheduleOverdueOrders(currentTime);
-            if (rescheduledCount > 0) {
-                logger.info("Перенесено {} просроченных заявок на следующий день", rescheduledCount);
-            }
+            // Перенос просроченных заявок отключен по требованиям — заявки с прошедшим
+            // временем не принимаются
 
             // Получаем заявки с точным временем (не просроченные) из кэша
             List<OrderEntity> exactTimeOrders = orderCacheService.getExactTimeOrders(currentTime);
@@ -164,7 +159,7 @@ public class OrderSchedulerService {
         if (price == null) {
             return "null";
         }
-        return price.setScale(4, java.math.RoundingMode.HALF_UP).toPlainString();
+        return price.setScale(6, java.math.RoundingMode.HALF_UP).toPlainString();
     }
 
     /**

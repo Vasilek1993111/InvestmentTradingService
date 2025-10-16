@@ -94,7 +94,7 @@ public record OrderDTO(
      * @return цена как BigDecimal с округлением до копеек
      */
     public java.math.BigDecimal getPriceAsBigDecimalRounded() {
-        return price.toBigDecimal().setScale(2, java.math.RoundingMode.HALF_UP);
+        return price.toBigDecimal().setScale(6, java.math.RoundingMode.HALF_UP);
     }
 
     /**

@@ -8,9 +8,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.example.investmenttradingservice.DTO.GroupOrderRequest;
-import com.example.investmenttradingservice.DTO.GroupOrderResponseDTO;
 import com.example.investmenttradingservice.DTO.OrderDTO;
-import java.math.BigDecimal;
+import com.example.investmenttradingservice.entity.OrderEntity;
+import com.example.investmenttradingservice.enums.OrderStatus;
+import com.example.investmenttradingservice.mapper.OrderMapper;
 
 /**
  * Сервис для обработки отложенных заявок.
@@ -43,6 +44,14 @@ public class DelayedOrderService {
     @Autowired
     private OrderCacheService orderCacheService;
 
+    /** Маппер для преобразования DTO <-> Entity */
+    @Autowired
+    private OrderMapper orderMapper;
+
+    /** Сервис отправки заявок в T-Invest API */
+    @Autowired
+    private TInvestApiService tInvestApiService;
+
     /**
      * Обрабатывает групповую заявку и возвращает список сгенерированных заявок.
      * 
@@ -54,6 +63,17 @@ public class DelayedOrderService {
                 request.instruments().size(), request.direction(), request.levels().getLevelsCount());
 
         try {
+            // Валидация времени: start_time не должен быть в прошлом (в таймзоне
+            // Europe/Moscow)
+            java.time.LocalTime now = java.time.LocalTime
+                    .now(com.example.investmenttradingservice.util.TimeZoneUtils.getMoscowZone())
+                    .withSecond(0).withNano(0);
+            if (request.start_time() != null && request.start_time().isBefore(now)) {
+                throw new com.example.investmenttradingservice.exception.ValidationException(
+                        "Время начала исполнения (start_time) не может быть в прошлом",
+                        "start_time",
+                        request.start_time());
+            }
             // Валидируем запрос
             if (!isValidRequest(request)) {
                 logger.error("Некорректный запрос групповой заявки");
@@ -62,6 +82,48 @@ public class DelayedOrderService {
 
             // Генерируем заявки
             List<OrderDTO> orders = orderGenerationService.generateOrders(request);
+
+            // Если пользователь передал "now" -> start_time уже десериализован в текущее
+            // время.
+            // Такие заявки отправляем сразу в T-Invest API, не кладем в кэш и БД.
+            java.time.LocalTime nowNormalized = java.time.LocalTime
+                    .now(com.example.investmenttradingservice.util.TimeZoneUtils.getMoscowZone())
+                    .withSecond(0).withNano(0);
+            boolean isImmediate = request.start_time() != null && request.start_time().equals(nowNormalized);
+
+            if (isImmediate && !orders.isEmpty()) {
+                logger.info("Обнаружены мгновенные заявки (now): сохраняем в БД и отправляем напрямую в T-Invest API");
+                for (OrderDTO dto : orders) {
+                    try {
+                        // 1) Сначала фиксируем заявку в БД со статусом PENDING
+                        orderPersistenceService.saveOrder(dto);
+
+                        // 2) Пробуем отправить заявку
+                        OrderEntity entity = orderMapper.toEntity(dto);
+                        TInvestApiService.TInvestApiResponse apiResponse = tInvestApiService.sendOrder(entity);
+
+                        // 3) Обновляем статус в БД в зависимости от результата
+                        if (apiResponse.isSuccess()) {
+                            orderPersistenceService.updateOrderStatus(dto.orderId(), OrderStatus.SENT,
+                                    apiResponse.getOrderId(), null);
+                            logger.info("Мгновенная заявка отправлена: orderId={}, tinvestOrderId={}", dto.orderId(),
+                                    apiResponse.getOrderId());
+                        } else {
+                            orderPersistenceService.updateOrderStatus(dto.orderId(), OrderStatus.ERROR, null,
+                                    apiResponse.getErrorMessage());
+                            logger.error("Мгновенная заявка не отправлена: orderId={}, error={}", dto.orderId(),
+                                    apiResponse.getErrorMessage());
+                        }
+                    } catch (Exception ex) {
+                        // На случай непредвиденной ошибки — зафиксируем ERROR в БД
+                        orderPersistenceService.updateOrderStatus(dto.orderId(), OrderStatus.ERROR, null,
+                                "Exception: " + ex.getMessage());
+                        logger.error("Ошибка при обработке мгновенной заявки {}: {}", dto.orderId(), ex.getMessage(),
+                                ex);
+                    }
+                }
+                return orders;
+            }
 
             // Сначала кладем в кэш, затем дублируем в БД
             if (!orders.isEmpty()) {
@@ -82,47 +144,73 @@ public class DelayedOrderService {
         }
     }
 
+    // Удалено: processGroupOrderWithPrice - заменён на processSingleOrderWithPrice
+    // для одноинструментных запросов
+
     /**
-     * Обрабатывает групповую заявку и возвращает ответ с заявками и ценой
-     * инструмента.
-     * 
-     * @param request запрос на создание групповой заявки
-     * @return ответ с заявками и реальной ценой инструмента из API
+     * Обрабатывает одиночный запрос с финальными ценами уровней: сохраняет в БД,
+     * при необходимости отправляет немедленно ("now"), выставляя статусы.
      */
-    public GroupOrderResponseDTO processGroupOrderWithPrice(GroupOrderRequest request) {
-        logger.info("Начало обработки групповой заявки с ценой: {} инструментов, направление: {}, уровни: {}",
-                request.instruments().size(), request.direction(), request.levels().getLevelsCount());
+    public List<OrderDTO> processSingleOrderWithPrice(
+            com.example.investmenttradingservice.DTO.SingleOrderRequest request) {
+        logger.info("Начало обработки одиночной заявки с ценой: инструмент={}, направления={}, уровни={}",
+                request.instrument(), request.direction(), request.levels().getLevelsCount());
 
         try {
-            // Валидируем запрос
-            if (!isValidRequest(request)) {
-                logger.error("Некорректный запрос групповой заявки");
-                return GroupOrderResponseDTO.empty();
+            // Валидация времени
+            java.time.LocalTime now = java.time.LocalTime
+                    .now(com.example.investmenttradingservice.util.TimeZoneUtils.getMoscowZone())
+                    .withSecond(0).withNano(0);
+            if (request.start_time() != null && request.start_time().isBefore(now)) {
+                throw new com.example.investmenttradingservice.exception.ValidationException(
+                        "Время начала исполнения (start_time) не может быть в прошлом",
+                        "start_time",
+                        request.start_time());
             }
 
-            // Генерируем заявки и получаем реальную цену инструмента из API
-            var result = orderGenerationService.generateOrdersWithInstrumentPrice(request);
-            List<OrderDTO> orders = result.getKey();
-            BigDecimal instrumentPrice = result.getValue();
+            List<OrderDTO> orders = orderGenerationService.generateSingleInstrumentWithDirectLevelPrices(
+                    request.instrument(), request.direction(), request.amount(), request.levels(),
+                    request.start_time());
 
-            logger.info("Получена реальная цена инструмента из API: {}", instrumentPrice);
-
-            // Сначала кладем в кэш, затем дублируем в БД
-            if (!orders.isEmpty()) {
-                orderCacheService.putAll(orders);
-                logger.info("Заявки сохранены в кэш");
-                orderPersistenceService.saveOrders(orders);
-                logger.info("Заявки сохранены в БД (events store)");
+            if (orders.isEmpty()) {
+                return List.of();
             }
 
-            // Логируем результат
-            logGenerationResult(request, orders);
+            // Немедленная отправка
+            java.time.LocalTime nowNormalized = now;
+            boolean isImmediate = request.start_time() != null && request.start_time().equals(nowNormalized);
+            if (isImmediate) {
+                for (OrderDTO dto : orders) {
+                    try {
+                        orderPersistenceService.saveOrder(dto);
+                        com.example.investmenttradingservice.entity.OrderEntity entity = orderMapper.toEntity(dto);
+                        TInvestApiService.TInvestApiResponse apiResponse = tInvestApiService.sendOrder(entity);
+                        if (apiResponse.isSuccess()) {
+                            orderPersistenceService.updateOrderStatus(dto.orderId(),
+                                    com.example.investmenttradingservice.enums.OrderStatus.SENT,
+                                    apiResponse.getOrderId(), null);
+                        } else {
+                            orderPersistenceService.updateOrderStatus(dto.orderId(),
+                                    com.example.investmenttradingservice.enums.OrderStatus.ERROR,
+                                    null, apiResponse.getErrorMessage());
+                        }
+                    } catch (Exception ex) {
+                        orderPersistenceService.updateOrderStatus(dto.orderId(),
+                                com.example.investmenttradingservice.enums.OrderStatus.ERROR,
+                                null, "Exception: " + ex.getMessage());
+                    }
+                }
+                return orders;
+            }
 
-            return GroupOrderResponseDTO.of(orders, instrumentPrice);
+            // Отложенная логика: кэш + БД
+            orderCacheService.putAll(orders);
+            orderPersistenceService.saveOrders(orders);
+            return orders;
 
         } catch (Exception e) {
-            logger.error("Ошибка при обработке групповой заявки: {}", e.getMessage(), e);
-            return GroupOrderResponseDTO.empty();
+            logger.error("Ошибка при обработке одиночной заявки с ценой: {}", e.getMessage(), e);
+            return List.of();
         }
     }
 

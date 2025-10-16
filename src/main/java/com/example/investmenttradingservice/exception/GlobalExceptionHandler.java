@@ -78,10 +78,15 @@ public class GlobalExceptionHandler {
                     instrumentEx.getFigi(), operationContext);
         } else if (ex instanceof ValidationException) {
             ValidationException validationEx = (ValidationException) ex;
+            String expected = getExpectedFormat(validationEx.getField());
+            // Специальный случай для start_time в прошлом
+            if ("start_time".equalsIgnoreCase(validationEx.getField())) {
+                expected = "Время в формате HH:mm:ss и не в прошлом (Europe/Moscow)";
+            }
             errorResponse = ErrorContextBuilder.buildValidationError(
                     validationEx.getField(),
                     validationEx.getRejectedValue(),
-                    getExpectedFormat(validationEx.getField()),
+                    expected,
                     operationContext);
         } else if (ex instanceof ExternalApiException) {
             ExternalApiException externalEx = (ExternalApiException) ex;
