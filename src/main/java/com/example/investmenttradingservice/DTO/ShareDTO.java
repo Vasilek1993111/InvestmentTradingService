@@ -1,5 +1,7 @@
 package com.example.investmenttradingservice.DTO;
 
+import java.math.BigDecimal;
+
 /**
  * Data Transfer Object (DTO) для передачи данных об акциях
  * 
@@ -35,17 +37,21 @@ package com.example.investmenttradingservice.DTO;
  *         "MOEX", "Финансы", "NormalTrading", true, "asset123", 10);
  * }</pre>
  * 
- * @param figi          уникальный идентификатор финансового инструмента (FIGI)
- * @param ticker        торговый символ акции (например, SBER, GAZP)
- * @param name          полное название компании-эмитента
- * @param currency      валюта, в которой торгуется акция (RUB, USD, EUR)
- * @param exchange      биржа, где торгуется акция (MOEX, NYSE, NASDAQ)
- * @param sector        сектор экономики (Финансы, Энергетика, IT и т.д.)
- * @param tradingStatus статус торговли (NormalTrading, NotAvailableForTrading и
- *                      т.д.)
- * @param shortEnabled  возможность совершения коротких продаж
- * @param assetUid      уникальный идентификатор актива
- * @param lot           размер лота (минимальное количество для покупки/продажи)
+ * @param figi              уникальный идентификатор финансового инструмента
+ *                          (FIGI)
+ * @param ticker            торговый символ акции (например, SBER, GAZP)
+ * @param name              полное название компании-эмитента
+ * @param currency          валюта, в которой торгуется акция (RUB, USD, EUR)
+ * @param exchange          биржа, где торгуется акция (MOEX, NYSE, NASDAQ)
+ * @param sector            сектор экономики (Финансы, Энергетика, IT и т.д.)
+ * @param tradingStatus     статус торговли (NormalTrading,
+ *                          NotAvailableForTrading и
+ *                          т.д.)
+ * @param shortEnabled      возможность совершения коротких продаж
+ * @param assetUid          уникальный идентификатор актива
+ * @param lot               размер лота (минимальное количество для
+ *                          покупки/продажи)
+ * @param minPriceIncrement минимальный шаг цены
  * 
  * @author Investment Trading Service Team
  * @version 1.0.0
@@ -60,7 +66,8 @@ public record ShareDTO(
         String sector,
         String tradingStatus,
         Boolean shortEnabled,
-        String assetUid
-        ) {
+        String assetUid,
+        Integer lot,
+        BigDecimal minPriceIncrement) {
 
 }

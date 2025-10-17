@@ -45,7 +45,9 @@ public class FutureMapper {
                 entity.getCurrency(),
                 entity.getExchange(),
                 entity.getShortEnabled(),
-                entity.getExpirationDate());
+                entity.getExpirationDate(),
+                entity.getLot(),
+                entity.getMinPriceIncrement());
     }
 
     /**
@@ -68,7 +70,8 @@ public class FutureMapper {
         entity.setExchange(dto.exchange());
         entity.setShortEnabled(dto.shortEnabled());
         entity.setExpirationDate(dto.expirationDate());
-
+        entity.setLot(dto.lot());
+        entity.setMinPriceIncrement(dto.minPriceIncrement());
         // Устанавливаем временные метки в московской временной зоне
         LocalDateTime now = LocalDateTime.now(TimeZoneUtils.getMoscowZone());
         entity.setCreatedAt(now);
@@ -97,7 +100,7 @@ public class FutureMapper {
         entity.setExchange(dto.exchange());
         entity.setShortEnabled(dto.shortEnabled());
         entity.setExpirationDate(dto.expirationDate());
-
+        entity.setMinPriceIncrement(dto.minPriceIncrement());
         // Обновляем время изменения в московской временной зоне
         entity.setUpdatedAt(LocalDateTime.now(TimeZoneUtils.getMoscowZone()));
 
@@ -163,4 +166,3 @@ public class FutureMapper {
         return list == null || list.isEmpty();
     }
 }
-

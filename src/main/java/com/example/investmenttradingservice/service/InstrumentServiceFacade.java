@@ -230,4 +230,25 @@ public interface InstrumentServiceFacade {
      * @return цена или null если не удалось извлечь
      */
     BigDecimal extractPriceFromData(Object priceData);
+
+    /**
+     * Получает минимальный шаг цены для инструмента по FIGI из кэша.
+     * 
+     * <p>
+     * Ищет инструмент среди акций и фьючерсов в кэше, возвращает minPriceIncrement.
+     * Этот метод оптимизирован для быстрого доступа к данным из кэша.
+     * </p>
+     * 
+     * @param figi идентификатор инструмента
+     * @return минимальный шаг цены или null если не найден
+     */
+    BigDecimal getMinPriceIncrement(String figi);
+
+    /**
+     * Получает размер лота для инструмента по FIGI из кэша.
+     * 
+     * @param figi идентификатор инструмента
+     * @return размер лота или null если не найден
+     */
+    Integer getLot(String figi);
 }

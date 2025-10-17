@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import com.example.investmenttradingservice.util.TimeZoneUtils;
@@ -69,6 +71,14 @@ public class FutureEntity {
     /** Возможность совершения коротких продаж */
     @Column(name = "short_enabled")
     private Boolean shortEnabled;
+
+    /** Минимальный шаг цены */
+    @Column(name = "min_price_increment")
+    private BigDecimal minPriceIncrement;
+
+    /** Размер лота инструмента */
+    @Column(name = "lot")
+    private Integer lot;
 
     /** Дата и время экспирации фьючерсного контракта */
     @Column(name = "expiration_date")

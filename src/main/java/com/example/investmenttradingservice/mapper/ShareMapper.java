@@ -43,7 +43,9 @@ public class ShareMapper {
                 entity.getSector(),
                 entity.getTradingStatus(),
                 entity.getShortEnabled(),
-                entity.getAssetUid());
+                entity.getAssetUid(),
+                entity.getLot(),
+                entity.getMinPriceIncrement());
     }
 
     /**
@@ -67,7 +69,8 @@ public class ShareMapper {
         entity.setTradingStatus(dto.tradingStatus());
         entity.setShortEnabled(dto.shortEnabled());
         entity.setAssetUid(dto.assetUid());
-
+        entity.setLot(dto.lot());
+        entity.setMinPriceIncrement(dto.minPriceIncrement());
 
         // Устанавливаем временные метки
         LocalDateTime now = LocalDateTime.now();
@@ -98,7 +101,7 @@ public class ShareMapper {
         entity.setTradingStatus(dto.tradingStatus());
         entity.setShortEnabled(dto.shortEnabled());
         entity.setAssetUid(dto.assetUid());
-
+        entity.setMinPriceIncrement(dto.minPriceIncrement());
         // Обновляем время изменения
         entity.setUpdatedAt(LocalDateTime.now());
 
@@ -164,4 +167,3 @@ public class ShareMapper {
         return list == null || list.isEmpty();
     }
 }
-
