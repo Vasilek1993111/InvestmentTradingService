@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import com.example.investmenttradingservice.DTO.GroupOrderRequest;
 import com.example.investmenttradingservice.DTO.OrderDTO;
+import com.example.investmenttradingservice.DTO.LimitOrderRequest;
 import com.example.investmenttradingservice.entity.OrderEntity;
 import com.example.investmenttradingservice.enums.OrderStatus;
 import com.example.investmenttradingservice.mapper.OrderMapper;
@@ -351,6 +352,162 @@ public class DelayedOrderService {
             logger.error("Ошибка при поиске заявок с ошибками: {}", e.getMessage(), e);
             return List.of();
         }
+    }
+
+    /**
+     * Обрабатывает лимитные ордера для множественных инструментов.
+     * Создает ордера с лимитами limitUp/limitDown для каждого инструмента.
+     * 
+     * @param request запрос на создание лимитных ордеров
+     * @return список созданных ордеров
+     */
+    public List<OrderDTO> processLimitOrders(LimitOrderRequest request) {
+        logger.info("Начало обработки лимитных ордеров: инструменты={}, тип лимита={}, направление={}, время={}",
+                request.getInstrumentsCount(), request.levels().level(), request.direction(), request.start_time());
+
+        try {
+            // Валидация времени
+            java.time.LocalTime now = java.time.LocalTime
+                    .now(com.example.investmenttradingservice.util.TimeZoneUtils.getMoscowZone())
+                    .withSecond(0).withNano(0);
+
+            if (request.start_time() != null && request.start_time().isBefore(now)) {
+                throw new com.example.investmenttradingservice.exception.ValidationException(
+                        "Время начала исполнения (start_time) не может быть в прошлом",
+                        "start_time",
+                        request.start_time());
+            }
+
+            // Создаем ордера для каждого инструмента
+            List<OrderDTO> allOrders = new java.util.ArrayList<>();
+
+            for (String instrument : request.instruments()) {
+                try {
+                    // Генерируем ордера для текущего инструмента
+                    List<OrderDTO> instrumentOrders = orderGenerationService.generateLimitOrdersForInstrument(
+                            instrument,
+                            request.direction(),
+                            request.amount(),
+                            request.levels(),
+                            request.start_time());
+
+                    if (!instrumentOrders.isEmpty()) {
+                        allOrders.addAll(instrumentOrders);
+                        logger.debug("Создано {} ордеров для инструмента {}", instrumentOrders.size(), instrument);
+                    }
+
+                } catch (Exception e) {
+                    logger.warn("Ошибка при создании ордеров для инструмента {}: {}", instrument, e.getMessage());
+                    // Продолжаем обработку других инструментов
+                }
+            }
+
+            if (allOrders.isEmpty()) {
+                logger.warn("Не удалось создать ни одного лимитного ордера");
+                return List.of();
+            }
+
+            // Сохраняем ордера в БД и кэш
+            orderCacheService.putAll(allOrders);
+            orderPersistenceService.saveOrders(allOrders);
+            logger.info("Лимитные ордера сохранены в кэш и БД: {}", allOrders.size());
+
+            // Немедленная отправка если время "now"
+            java.time.LocalTime nowNormalized = now;
+            boolean isImmediate = request.start_time() != null && request.start_time().equals(nowNormalized);
+            if (isImmediate) {
+                logger.info("Выполняется немедленная отправка {} лимитных ордеров", allOrders.size());
+                for (OrderDTO order : allOrders) {
+                    try {
+                        OrderEntity entity = orderMapper.toEntity(order);
+                        TInvestApiService.TInvestApiResponse response = tInvestApiService.sendOrder(entity);
+                        if (response.isSuccess()) {
+                            updateOrderStatus(order.orderId(), OrderStatus.SENT, response.getOrderId(), null);
+                            logger.info("Лимитный ордер {} отправлен немедленно", order.orderId());
+                        } else {
+                            updateOrderStatus(order.orderId(), OrderStatus.ERROR, null, response.getErrorMessage());
+                            logger.error("Ошибка при отправке лимитного ордера {}: {}", order.orderId(),
+                                    response.getErrorMessage());
+                        }
+                    } catch (Exception e) {
+                        logger.error("Ошибка при немедленной отправке лимитного ордера {}: {}", order.orderId(),
+                                e.getMessage(), e);
+                        String detailedError = getDetailedErrorMessage(e);
+                        updateOrderStatus(order.orderId(), OrderStatus.ERROR, null, detailedError);
+                    }
+                }
+            }
+
+            logger.info("Успешно обработано {} лимитных ордеров типа {}", allOrders.size(), request.levels().level());
+            return allOrders;
+
+        } catch (Exception e) {
+            logger.error("Ошибка при обработке лимитных ордеров: {}", e.getMessage(), e);
+            throw new RuntimeException("Ошибка при обработке лимитных ордеров", e);
+        }
+    }
+
+    /**
+     * Получает детальную информацию об ошибке для логирования.
+     * 
+     * <p>
+     * Метод извлекает максимально подробную информацию об ошибке,
+     * включая причину, детали и контекст ошибки.
+     * </p>
+     * 
+     * @param ex исключение для анализа
+     * @return детальное сообщение об ошибке
+     */
+    private String getDetailedErrorMessage(Exception ex) {
+        StringBuilder errorDetails = new StringBuilder();
+
+        // Основное сообщение об ошибке
+        errorDetails.append("Ошибка: ").append(ex.getMessage());
+
+        // Проверяем, является ли это ApiRuntimeException от T-Invest
+        if (ex instanceof ru.tinkoff.piapi.core.exception.ApiRuntimeException) {
+            ru.tinkoff.piapi.core.exception.ApiRuntimeException apiEx = (ru.tinkoff.piapi.core.exception.ApiRuntimeException) ex;
+
+            errorDetails.append("\nТип ошибки: ApiRuntimeException");
+
+            // Пытаемся получить дополнительную информацию
+            try {
+                if (apiEx.getCause() != null) {
+                    errorDetails.append("\nПричина: ").append(apiEx.getCause().getMessage());
+                }
+
+                // Получаем stack trace для анализа
+                java.io.StringWriter sw = new java.io.StringWriter();
+                java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+                apiEx.printStackTrace(pw);
+                String stackTrace = sw.toString();
+
+                // Ищем специфичные ошибки T-Invest в stack trace
+                if (stackTrace.contains("INVALID_ARGUMENT")) {
+                    errorDetails.append("\nДетали: Неверные аргументы запроса");
+                } else if (stackTrace.contains("PERMISSION_DENIED")) {
+                    errorDetails.append("\nДетали: Недостаточно прав для выполнения операции");
+                } else if (stackTrace.contains("UNAVAILABLE")) {
+                    errorDetails.append("\nДетали: Сервис недоступен");
+                } else if (stackTrace.contains("DEADLINE_EXCEEDED")) {
+                    errorDetails.append("\nДетали: Превышено время ожидания");
+                } else {
+                    errorDetails.append("\nДетали: ")
+                            .append(stackTrace.length() > 500 ? stackTrace.substring(0, 500) + "..." : stackTrace);
+                }
+
+            } catch (Exception e) {
+                errorDetails.append("\nОшибка при анализе исключения: ").append(e.getMessage());
+            }
+        } else {
+            // Для других типов исключений
+            errorDetails.append("\nТип ошибки: ").append(ex.getClass().getSimpleName());
+            if (ex.getCause() != null) {
+                errorDetails.append("\nПричина: ").append(ex.getCause().getMessage());
+            }
+        }
+
+        return errorDetails.toString();
     }
 
     /**
