@@ -12,10 +12,9 @@ import com.example.investmenttradingservice.exception.BusinessLogicException;
 import com.example.investmenttradingservice.enums.OrderStatus;
 import com.example.investmenttradingservice.service.DelayedOrderService;
 import com.example.investmenttradingservice.service.OrderPersistenceService;
-import com.example.investmenttradingservice.service.OrderGenerationService;
 import com.example.investmenttradingservice.shedullers.OrderSchedulerService;
 import com.example.investmenttradingservice.service.OrderCacheService;
-import com.example.investmenttradingservice.service.TInvestApiService;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,11 +22,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+
 
 /**
  * REST контроллер для управления заявками и планировщиком.
@@ -50,8 +47,6 @@ public class OrderController {
     @Autowired
     private DelayedOrderService delayedOrderService;
 
-    @Autowired
-    private TInvestApiService tInvestApiService;
 
     @Autowired
     private OrderPersistenceService orderPersistenceService;
@@ -62,8 +57,7 @@ public class OrderController {
     @Autowired
     private OrderCacheService orderCacheService;
 
-    @Autowired
-    private OrderGenerationService orderGenerationService;
+
 
     /**
      * Создает групповую заявку.
@@ -558,16 +552,6 @@ public class OrderController {
         }
     }
 
-    @GetMapping("/limits/{instrumentId}")
-    public ResponseEntity<Map<String, Object>> getLimitsForInstrument(@PathVariable String instrumentId) {
-        List<BigDecimal> limits = tInvestApiService.getLimitsForInstrument(instrumentId);
-        Map<String, Object> response = new HashMap<>();
-        response.put("instrumentId", instrumentId);
-        BigDecimal limitDown = limits.get(0);
-        BigDecimal limitUp = limits.get(1);
-        response.put("limitDown", limitDown);
-        response.put("limitUp", limitUp);
-        return ResponseEntity.ok(response);
-    }
+    
 
 }

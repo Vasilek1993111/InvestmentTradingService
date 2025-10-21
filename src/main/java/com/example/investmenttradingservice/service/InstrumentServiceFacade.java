@@ -251,4 +251,31 @@ public interface InstrumentServiceFacade {
      * @return размер лота или null если не найден
      */
     Integer getLot(String figi);
+
+    // ===========================================
+    // Методы для работы с лимитами цен (limits)
+    // ===========================================
+
+    /**
+     * Запускает синхронное обновление лимитов для всех инструментов из кэша
+     * (акции и фьючерсы) с задержкой и retry-механизмом.
+     *
+     * @return количество обновлённых записей лимитов
+     */
+    int refreshAllLimitsSync();
+
+    /**
+     * Возвращает текущий список лимитов из кэша без обращений к API.
+     *
+     * @return список {@link LimitsDto} из кэша
+     */
+    List<LimitsDto> getLimitsFromCacheOnly();
+
+    /**
+     * Возвращает лимит по конкретному инструменту из кэша.
+     *
+     * @param instrumentId FIGI/InstrumentId инструмента
+     * @return {@link LimitsDto} или null, если не найдено
+     */
+    LimitsDto getLimitByInstrumentIdFromCache(String instrumentId);
 }

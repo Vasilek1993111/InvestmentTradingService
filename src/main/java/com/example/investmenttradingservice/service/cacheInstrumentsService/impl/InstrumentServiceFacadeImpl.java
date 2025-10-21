@@ -70,6 +70,9 @@ public class InstrumentServiceFacadeImpl implements InstrumentServiceFacade {
     /** Сервис для работы с дивидендами */
     private final DividendService dividendService;
 
+    /** Сервис для работы с лимитами цен */
+    private final LimitService limitService;
+
     /** Менеджер кэша инструментов */
     private final InstrumentCacheManager instrumentCacheManager;
 
@@ -96,6 +99,7 @@ public class InstrumentServiceFacadeImpl implements InstrumentServiceFacade {
             ClosePriceEveningSessionService closePriceEveningSessionService,
             LastPriceService lastPriceService,
             DividendService dividendService,
+            LimitService limitService,
             InstrumentCacheManager instrumentCacheManager) {
         this.shareService = shareService;
         this.futureService = futureService;
@@ -105,6 +109,7 @@ public class InstrumentServiceFacadeImpl implements InstrumentServiceFacade {
         this.closePriceEveningSessionService = closePriceEveningSessionService;
         this.lastPriceService = lastPriceService;
         this.dividendService = dividendService;
+        this.limitService = limitService;
         this.instrumentCacheManager = instrumentCacheManager;
     }
 
@@ -646,5 +651,33 @@ public class InstrumentServiceFacadeImpl implements InstrumentServiceFacade {
                     figi, e.getMessage(), e);
             return null;
         }
+    }
+
+    // ===========================================
+    // Методы для работы с лимитами цен (limits)
+    // ===========================================
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int refreshAllLimitsSync() {
+        return limitService.refreshAllLimits();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<LimitsDto> getLimitsFromCacheOnly() {
+        return limitService.getLimitsFromCache();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public LimitsDto getLimitByInstrumentIdFromCache(String instrumentId) {
+        return limitService.getLimitByInstrumentId(instrumentId);
     }
 }

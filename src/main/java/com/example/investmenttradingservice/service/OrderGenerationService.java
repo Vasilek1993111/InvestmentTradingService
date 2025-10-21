@@ -1,6 +1,7 @@
 package com.example.investmenttradingservice.service;
 
 import com.example.investmenttradingservice.DTO.GroupOrderRequest;
+import com.example.investmenttradingservice.DTO.LimitsDto;
 import com.example.investmenttradingservice.DTO.OrderDTO;
 import com.example.investmenttradingservice.enums.OrderDirection;
 
@@ -289,18 +290,18 @@ public class OrderGenerationService {
             }
 
             // Получаем лимиты для инструмента
-            List<BigDecimal> limits = tInvestApiService.getLimitsForInstrument(instrumentId);
+            LimitsDto limits = instrumentServiceFacade.getLimitByInstrumentIdFromCache(instrumentId);
 
             logger.debug("Получены лимиты для инструмента {}: {}", instrumentId, limits);
 
-            if (limits == null || limits.isEmpty() || limits.size() < 2) {
+            if (limits == null) {
                 logger.warn("Лимиты не найдены для инструмента: {} (получен список: {}), используем рассчитанную цену",
                         instrumentId, limits);
                 return price;
             }
 
-            BigDecimal limitDown = limits.get(0);
-            BigDecimal limitUp = limits.get(1);
+            BigDecimal limitDown = limits.limitDown();
+            BigDecimal limitUp = limits.limitUp();
 
             logger.debug("Лимиты для инструмента {}: limitDown={}, limitUp={}, текущая цена={}, направление={}",
                     instrumentId, limitDown, limitUp, price, direction);

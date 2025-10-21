@@ -2,10 +2,7 @@ package com.example.investmenttradingservice.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.example.investmenttradingservice.DTO.LimitsDto;
 import com.example.investmenttradingservice.entity.OrderEntity;
 import com.example.investmenttradingservice.enums.OrderDirection;
 import com.example.investmenttradingservice.enums.OrderType;
@@ -73,10 +71,7 @@ public class TInvestApiService {
      * Отправляет заявку в T-Invest API посредством PostOrder.
      *
      * <p>
-     * Поля маппятся согласно документации API. Для рыночных заявок цена передается,
-     * но сервер может её игнорировать. Включена простая retry-механика
-     * (экспоненциальная
-     * задержка) при временных сбоях.
+     * Поля маппятся согласно документации API.
      * </p>
      *
      * @param order доменная заявка
@@ -95,12 +90,6 @@ public class TInvestApiService {
         String instrumentId = order.getInstrumentId();
         ru.tinkoff.piapi.contract.v1.OrderType orderType = mapOrderType(order.getOrderType());
         String orderId = order.getOrderId();
-
-        int attempt = 0;
-        long backoffMs = 250L; // стартовая задержка
-
-        while (true) {
-            attempt++;
             try {
                 // Лог запроса (без секретов)
                 apiLogger.info(
@@ -130,23 +119,15 @@ public class TInvestApiService {
 
                 return TInvestApiResponse.success(tinvestOrderId);
             } catch (Exception ex) {
-                // Базовая эвристика: ретраим ограниченное число раз
-                if (attempt >= maxAttempts) {
-                    logger.error("PostOrder ошибка (попытка {} из {}): {}", attempt, maxAttempts, ex.getMessage());
-                    apiLogger.error("PostOrder failed: orderId={}, instrumentId={}, attempt={}/{}, error={}, token={}",
-                            mask(orderId), instrumentId, attempt, maxAttempts, safeErrorMessage(ex), apiToken);
+                    logger.error("PostOrder ошибка  {}", ex.getMessage());
+                    apiLogger.error("PostOrder failed: orderId={}, instrumentId={},, error={}, ",
+                            mask(orderId), instrumentId,  safeErrorMessage(ex)) ;
                     return TInvestApiResponse.error(safeErrorMessage(ex));
                 }
-
-                logger.warn("PostOrder временная ошибка, retry через {} ms (attempt {}/{}): {}",
-                        backoffMs, attempt, maxAttempts, ex.getMessage());
-                apiLogger.warn("PostOrder retry: orderId={}, instrumentId={}, nextDelayMs={}, attempt={}/{}, token={}",
-                        mask(orderId), instrumentId, backoffMs, attempt, maxAttempts, apiToken);
-                sleepQuietly(backoffMs);
-                backoffMs = Math.min(backoffMs * 2, 5_000L);
+                
             }
-        }
-    }
+        
+    
 
     /**
      * Отправляет заявку и возвращает сырой ответ PostOrderResponse.
@@ -169,13 +150,8 @@ public class TInvestApiService {
         return msg == null ? "API error" : (msg.length() > 500 ? msg.substring(0, 500) : msg);
     }
 
-    private static void sleepQuietly(long millis) {
-        try {
-            TimeUnit.MILLISECONDS.sleep(millis);
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-        }
-    }
+    
+    
 
     private Quotation toQuotation(BigDecimal price) {
         if (price == null) {
@@ -264,7 +240,7 @@ public class TInvestApiService {
         }
     }
 
-    public List<BigDecimal> getLimitsForInstrument(String instrumentId) {
+    public LimitsDto getLimitsForInstrument(String instrumentId) {
         logger.debug("Запрос лимитов для инструмента: {}", instrumentId);
         try {
             GetOrderBookResponse limitsResponse = marketDataService.getOrderBook(instrumentId, 1).join();
@@ -283,10 +259,7 @@ public class TInvestApiService {
                         instrumentId, limitDownDecimal, limitDown.getUnits(), limitDown.getNano(),
                         limitUpDecimal, limitUp.getUnits(), limitUp.getNano());
 
-                List<BigDecimal> limits = new LinkedList<>();
-                limits.add(limitDownDecimal);
-                limits.add(limitUpDecimal);
-                return limits;
+                return new LimitsDto(instrumentId, limitDownDecimal, limitUpDecimal);
             } else {
                 logger.warn("Лимиты не найдены в OrderBook для инструмента {}: hasLimitUp={}, hasLimitDown={}",
                         instrumentId, limitsResponse.hasLimitUp(), limitsResponse.hasLimitDown());
@@ -297,7 +270,7 @@ public class TInvestApiService {
 
         }
         logger.warn("Возвращаем пустой список лимитов для инструмента {}", instrumentId);
-        return Collections.emptyList();
+        return new LimitsDto(instrumentId, null, null);
 
     }
 

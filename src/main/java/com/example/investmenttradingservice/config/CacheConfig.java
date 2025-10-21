@@ -68,6 +68,10 @@ public class CacheConfig {
     /**Имя кэша для дивидентных событий */
     private static final String DIVIDENDS_CACHE = "dividendsCache";
 
+    /**Имя кэша для лимитов */
+    private static final String LIMITS_CACHE = "limitsCache";
+
+
     /**
      * Создает конфигурацию Caffeine для кэширования
      * 
@@ -110,7 +114,8 @@ public class CacheConfig {
                 OPEN_PRICES_CACHE,
                 CLOSE_PRICES_EVENING_SESSION_CACHE,
                 LAST_PRICE_CACHE, 
-                DIVIDENDS_CACHE);
+                DIVIDENDS_CACHE,
+                LIMITS_CACHE);
         cacheManager.setCaffeine(caffeine);
         return cacheManager;
     }
