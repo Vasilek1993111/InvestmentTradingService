@@ -230,6 +230,7 @@
             </plugin>
             
             <!-- Maven Toolchains Plugin: force JDK 21 even if Maven runs on JDK 24 -->
+            <!-- Temporarily disabled for compilation
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-toolchains-plugin</artifactId>
@@ -250,6 +251,7 @@
                     </execution>
                 </executions>
             </plugin>
+            -->
         </plugins>
     </build>
 

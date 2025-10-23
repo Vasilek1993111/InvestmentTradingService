@@ -6,13 +6,13 @@ import com.example.investmenttradingservice.DTO.OrderDTO;
 import com.example.investmenttradingservice.DTO.OrderResponseDTO;
 import com.example.investmenttradingservice.DTO.TinkoffPostOrderResponseDTO;
 import com.example.investmenttradingservice.DTO.ApiSuccessResponse;
+import com.example.investmenttradingservice.DTO.SingleOrderRequest;
 import com.example.investmenttradingservice.exception.ValidationException;
 import com.example.investmenttradingservice.exception.BusinessLogicException;
 
 import com.example.investmenttradingservice.enums.OrderStatus;
 import com.example.investmenttradingservice.service.DelayedOrderService;
 import com.example.investmenttradingservice.service.OrderPersistenceService;
-import com.example.investmenttradingservice.service.OrderGenerationService;
 import com.example.investmenttradingservice.shedullers.OrderSchedulerService;
 import com.example.investmenttradingservice.service.OrderCacheService;
 import com.example.investmenttradingservice.service.TInvestApiService;
@@ -62,8 +62,6 @@ public class OrderController {
     @Autowired
     private OrderCacheService orderCacheService;
 
-    @Autowired
-    private OrderGenerationService orderGenerationService;
 
     /**
      * Создает групповую заявку.
@@ -109,7 +107,7 @@ public class OrderController {
      */
     @PostMapping("/group/with-price")
     public ResponseEntity<GroupOrderResponseDTO> createGroupOrderWithPrice(
-            @RequestBody com.example.investmenttradingservice.DTO.SingleOrderRequest request) {
+            @RequestBody SingleOrderRequest request) {
         try {
             logger.info("Создание заявки с ценой (один инструмент): instrument={}, время={}",
                     request.instrument(), request.start_time());
@@ -146,7 +144,7 @@ public class OrderController {
      */
     @PostMapping("/single/with-price")
     public ResponseEntity<List<OrderDTO>> createSingleOrderWithPrice(
-            @RequestBody com.example.investmenttradingservice.DTO.SingleOrderRequest request) {
+            @RequestBody SingleOrderRequest request) {
         try {
             logger.info("Создание одиночной(группы) заявки для инструмента {}, уровни как цены, время: {}",
                     request.instrument(), request.start_time());
