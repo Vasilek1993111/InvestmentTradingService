@@ -21,11 +21,9 @@ import org.springframework.http.ResponseEntity;
 public class ApiResponseBuilder {
 
     private final Map<String, Object> response;
-    private final boolean isSuccess;
 
     private ApiResponseBuilder(boolean isSuccess) {
         this.response = new LinkedHashMap<>();
-        this.isSuccess = isSuccess;
         this.response.put("success", isSuccess);
         this.response.put("status", isSuccess ? "success" : "error");
         this.response.put("timestamp", LocalDateTime.now());

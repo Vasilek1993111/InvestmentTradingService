@@ -24,7 +24,8 @@ public enum InstrumentType {
     CLOSE_PRICES_EVENING_SESSION("closePricesEveningSessionCache",
             new String[] { "all_close_prices_evening_session", "||||||||" }),
     LAST_PRICES("lastPricesCache", new String[] { "all_last_prices", "|||||||||" }),
-    DIVIDENDS("dividendsCache", new String[] { "all_dividends", "||||||||||" });
+    DIVIDENDS("dividendsCache", new String[] { "all_dividends", "||||||||||" }),
+    LIMITS("limitsCache", new String[] { "all_limits", "|||||||||||" });
 
     /** Имя кэша для данного типа инструмента */
     private final String cacheName;

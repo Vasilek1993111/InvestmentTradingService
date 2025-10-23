@@ -70,6 +70,9 @@ public class InstrumentServiceFacadeImpl implements InstrumentServiceFacade {
     /** Сервис для работы с дивидендами */
     private final DividendService dividendService;
 
+    /** Сервис для работы с лимитами цен */
+    private final LimitService limitService;
+
     /** Менеджер кэша инструментов */
     private final InstrumentCacheManager instrumentCacheManager;
 
@@ -96,6 +99,7 @@ public class InstrumentServiceFacadeImpl implements InstrumentServiceFacade {
             ClosePriceEveningSessionService closePriceEveningSessionService,
             LastPriceService lastPriceService,
             DividendService dividendService,
+            LimitService limitService,
             InstrumentCacheManager instrumentCacheManager) {
         this.shareService = shareService;
         this.futureService = futureService;
@@ -105,6 +109,7 @@ public class InstrumentServiceFacadeImpl implements InstrumentServiceFacade {
         this.closePriceEveningSessionService = closePriceEveningSessionService;
         this.lastPriceService = lastPriceService;
         this.dividendService = dividendService;
+        this.limitService = limitService;
         this.instrumentCacheManager = instrumentCacheManager;
     }
 
@@ -563,5 +568,116 @@ public class InstrumentServiceFacadeImpl implements InstrumentServiceFacade {
                     priceData.getClass().getSimpleName(), e.getMessage(), e);
             return null;
         }
+    }
+
+    /**
+     * Получает минимальный шаг цены для инструмента по FIGI из кэша.
+     * 
+     * <p>
+     * Ищет инструмент среди акций и фьючерсов в кэше, возвращает minPriceIncrement.
+     * Этот метод оптимизирован для быстрого доступа к данным из кэша.
+     * </p>
+     * 
+     * @param figi идентификатор инструмента
+     * @return минимальный шаг цены или null если не найден
+     */
+    @Override
+    public BigDecimal getMinPriceIncrement(String figi) {
+        logger.debug("Поиск минимального шага цены для инструмента: {}", figi);
+
+        try {
+            // Сначала ищем среди акций из кэша
+            List<ShareDTO> shares = getSharesFromCacheOnly();
+            for (ShareDTO share : shares) {
+                if (figi.equals(share.figi()) && share.minPriceIncrement() != null) {
+                    logger.debug("Найден шаг цены для акции {}: {}", figi, share.minPriceIncrement());
+                    return share.minPriceIncrement();
+                }
+            }
+
+            // Затем ищем среди фьючерсов из кэша
+            List<FutureDTO> futures = getFuturesFromCacheOnly();
+            for (FutureDTO future : futures) {
+                if (figi.equals(future.figi()) && future.minPriceIncrement() != null) {
+                    logger.debug("Найден шаг цены для фьючерса {}: {}", figi, future.minPriceIncrement());
+                    return future.minPriceIncrement();
+                }
+            }
+
+            logger.warn("Минимальный шаг цены не найден в кэше для инструмента: {}", figi);
+            return null;
+
+        } catch (Exception e) {
+            logger.error("Ошибка при получении минимального шага цены для инструмента {}: {}",
+                    figi, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Получает размер лота для инструмента по FIGI из кэша.
+     * 
+     * @param figi идентификатор инструмента
+     * @return размер лота или null если не найден
+     */
+    @Override
+    public Integer getLot(String figi) {
+        logger.debug("Поиск размера лота для инструмента: {}", figi);
+
+        try {
+            // Сначала ищем среди акций из кэша
+            List<ShareDTO> shares = getSharesFromCacheOnly();
+            for (ShareDTO share : shares) {
+                if (figi.equals(share.figi()) && share.lot() != null) {
+                    logger.debug("Найден размер лота для акции {}: {}", figi, share.lot());
+                    return share.lot();
+                }
+            }
+
+            // Затем ищем среди фьючерсов из кэша
+            List<FutureDTO> futures = getFuturesFromCacheOnly();
+            for (FutureDTO future : futures) {
+                if (figi.equals(future.figi()) && future.lot() != null) {
+                    logger.debug("Найден размер лота для фьючерса {}: {}", figi, future.lot());
+                    return future.lot();
+                }
+            }
+
+            logger.warn("Размер лота не найден в кэше для инструмента: {}", figi);
+            return null;
+
+        } catch (Exception e) {
+            logger.error("Ошибка при получении размера лота для инструмента {}: {}",
+                    figi, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    // ===========================================
+    // Методы для работы с лимитами цен (limits)
+    // ===========================================
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int refreshAllLimitsSync() {
+        return limitService.refreshAllLimits();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<LimitsDto> getLimitsFromCacheOnly() {
+        return limitService.getLimitsFromCache();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public LimitsDto getLimitByInstrumentIdFromCache(String instrumentId) {
+        return limitService.getLimitByInstrumentId(instrumentId);
     }
 }

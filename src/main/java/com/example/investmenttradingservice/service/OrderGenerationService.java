@@ -1,7 +1,9 @@
 package com.example.investmenttradingservice.service;
 
 import com.example.investmenttradingservice.DTO.GroupOrderRequest;
+import com.example.investmenttradingservice.DTO.LimitsDto;
 import com.example.investmenttradingservice.DTO.OrderDTO;
+import com.example.investmenttradingservice.DTO.LevelLimitDto;
 import com.example.investmenttradingservice.enums.OrderDirection;
 
 import java.math.BigDecimal;
@@ -96,7 +98,7 @@ public class OrderGenerationService {
             java.math.BigDecimal adjustedPrice = applyLimitsToPrice(normalizedLevelPrice, direction, instrumentId)
                     .setScale(6, java.math.RoundingMode.HALF_UP);
 
-            int lotSize = calculateLotSize(priceForLevel, adjustedPrice);
+            int lotSize = calculateLotSize(priceForLevel, adjustedPrice, instrumentId);
             if (lotSize > 0) {
                 orders.add(OrderDTO.create(lotSize, adjustedPrice, direction, accountId, instrumentId, startTime));
             }
@@ -204,7 +206,7 @@ public class OrderGenerationService {
                     level, instrumentPrice, levelPercentage, direction, adjustedPrice);
 
             // Рассчитываем лотность
-            int lotSize = calculateLotSize(basePriceForLevel, adjustedPrice);
+            int lotSize = calculateLotSize(basePriceForLevel, adjustedPrice, instrumentId);
 
             if (lotSize > 0) {
                 // Создаем заявку с учетом времени исполнения
@@ -289,18 +291,18 @@ public class OrderGenerationService {
             }
 
             // Получаем лимиты для инструмента
-            List<BigDecimal> limits = tInvestApiService.getLimitsForInstrument(instrumentId);
+            LimitsDto limits = instrumentServiceFacade.getLimitByInstrumentIdFromCache(instrumentId);
 
             logger.debug("Получены лимиты для инструмента {}: {}", instrumentId, limits);
 
-            if (limits == null || limits.isEmpty() || limits.size() < 2) {
+            if (limits == null) {
                 logger.warn("Лимиты не найдены для инструмента: {} (получен список: {}), используем рассчитанную цену",
                         instrumentId, limits);
                 return price;
             }
 
-            BigDecimal limitDown = limits.get(0);
-            BigDecimal limitUp = limits.get(1);
+            BigDecimal limitDown = limits.limitDown();
+            BigDecimal limitUp = limits.limitUp();
 
             logger.debug("Лимиты для инструмента {}: limitDown={}, limitUp={}, текущая цена={}, направление={}",
                     instrumentId, limitDown, limitUp, price, direction);
@@ -322,6 +324,22 @@ public class OrderGenerationService {
                 adjustedPrice = limitUp;
             }
 
+            // Применяем округление до шага цены
+            BigDecimal minPriceIncrement = instrumentServiceFacade != null
+                    ? instrumentServiceFacade.getMinPriceIncrement(instrumentId)
+                    : null;
+            if (minPriceIncrement != null) {
+                BigDecimal roundedPrice = calculateAjustedPriceWithMinPriceIncrement(adjustedPrice, minPriceIncrement);
+
+                logger.info("Цена округлена до шага: {} -> {} (шаг: {}, инструмент: {})",
+                        adjustedPrice, roundedPrice, minPriceIncrement, instrumentId);
+
+                adjustedPrice = roundedPrice;
+            } else {
+                logger.warn("Минимальный шаг цены не найден для инструмента: {}, используем исходную цену",
+                        instrumentId);
+            }
+
             return adjustedPrice;
 
         } catch (Exception e) {
@@ -331,24 +349,38 @@ public class OrderGenerationService {
     }
 
     /**
-     * Рассчитывает лотность заявки.
+     * Рассчитывает лотность заявки с учетом размера лота инструмента.
      * 
      * @param priceForLevel базовая цена за уровень
      * @param adjustedPrice скорректированная цена
-     * @return лотность (округленная в меньшую сторону)
+     * @param instrumentId  идентификатор инструмента для получения размера лота
+     * @return лотность (округленная в меньшую сторону с учетом размера лота)
      */
-    private int calculateLotSize(BigDecimal priceForLevel, BigDecimal adjustedPrice) {
+    private int calculateLotSize(BigDecimal priceForLevel, BigDecimal adjustedPrice, String instrumentId) {
         if (adjustedPrice.compareTo(BigDecimal.ZERO) == 0) {
             logger.warn("Скорректированная цена равна нулю, невозможно рассчитать лотность");
             return 0;
         }
 
-        // Рассчитываем лотность: priceForLevel / adjustedPrice
-        // Используем высокую точность для промежуточных вычислений
+        // Рассчитываем базовую лотность: priceForLevel / adjustedPrice
         BigDecimal lotRatio = priceForLevel.divide(adjustedPrice, 10, java.math.RoundingMode.HALF_UP);
-        int lotSize = lotRatio.setScale(0, java.math.RoundingMode.FLOOR).intValue();
+        int baseLotSize = lotRatio.setScale(0, java.math.RoundingMode.FLOOR).intValue();
 
-        return Math.max(0, lotSize); // Гарантируем, что лотность не отрицательная
+        // Получаем размер лота инструмента
+        Integer instrumentLot = getLotForInstrument(instrumentId);
+        if (instrumentLot == null || instrumentLot <= 0) {
+            logger.warn("Размер лота не найден для инструмента: {}, используем базовую лотность: {}",
+                    instrumentId, baseLotSize);
+            return Math.max(0, baseLotSize);
+        }
+
+        // Рассчитываем количество лотов инструмента: baseLotSize / instrumentLot
+        int finalLotSize = baseLotSize / instrumentLot;
+
+        logger.info("Расчет лотности: baseLotSize={}, instrumentLot={}, finalLotSize={}, инструмент={}",
+                baseLotSize, instrumentLot, finalLotSize, instrumentId);
+
+        return Math.max(0, finalLotSize);
     }
 
     /**
@@ -453,5 +485,239 @@ public class OrderGenerationService {
         }
 
         return new java.util.AbstractMap.SimpleEntry<>(orders, instrumentPrice);
+    }
+
+    private BigDecimal calculateAjustedPriceWithMinPriceIncrement(BigDecimal price, BigDecimal minPriceIncrement) {
+        return price.divide(minPriceIncrement, 6, java.math.RoundingMode.DOWN)
+                .multiply(minPriceIncrement)
+                .setScale(6, java.math.RoundingMode.DOWN);
+    }
+
+    /**
+     * Генерирует лимитные ордера для одного инструмента.
+     * Получает лимиты (limitUp/limitDown) из кэша и использует их как цену заявки.
+     * 
+     * @param instrumentId идентификатор инструмента
+     * @param direction    направление торговли ("buy" или "sell")
+     * @param amount       сумма для торговли
+     * @param levels       настройки лимитов
+     * @param startTime    время начала торговли
+     * @return список созданных ордеров
+     */
+    public List<OrderDTO> generateLimitOrdersForInstrument(String instrumentId, String direction,
+            BigDecimal amount, LevelLimitDto levels, java.time.LocalTime startTime) {
+        logger.info("Генерация лимитных ордеров для инструмента: {}, направление: {}, тип лимита: {}",
+                instrumentId, direction, levels.level());
+
+        List<OrderDTO> orders = new ArrayList<>();
+
+        try {
+            // Получаем лимиты из кэша для инструмента
+            BigDecimal limitPrice = getLimitPriceFromCache(instrumentId, levels);
+            if (limitPrice == null || limitPrice.compareTo(BigDecimal.ZERO) <= 0) {
+                logger.warn("Не удалось получить лимит {} для инструмента {} или лимит некорректен",
+                        levels.level(), instrumentId);
+                return orders;
+            }
+
+            // Получаем минимальный шаг цены для инструмента
+            BigDecimal minPriceIncrement = getMinPriceIncrementForInstrument(instrumentId);
+            if (minPriceIncrement == null || minPriceIncrement.compareTo(BigDecimal.ZERO) <= 0) {
+                logger.warn("Не удалось получить минимальный шаг цены для инструмента {}", instrumentId);
+                return orders;
+            }
+
+            // Округляем цену до шага цены
+            BigDecimal adjustedPrice = adjustPriceToIncrement(limitPrice, minPriceIncrement);
+            if (adjustedPrice == null || adjustedPrice.compareTo(BigDecimal.ZERO) <= 0) {
+                logger.warn("Некорректная скорректированная цена для инструмента {}", instrumentId);
+                return orders;
+            }
+
+            // Получаем размер лота для инструмента
+            Integer lotSize = getLotForInstrument(instrumentId);
+            if (lotSize == null || lotSize <= 0) {
+                logger.warn("Некорректный размер лота для инструмента {}", instrumentId);
+                return orders;
+            }
+
+            // Рассчитываем количество лотов на основе суммы
+            int quantity = calculateQuantityFromAmount(amount, adjustedPrice, lotSize);
+            if (quantity <= 0) {
+                logger.warn("Количество лотов для инструмента {} равно нулю", instrumentId);
+                return orders;
+            }
+
+            // Определяем направление ордера
+            OrderDirection orderDirection = "buy".equals(direction) ? OrderDirection.ORDER_DIRECTION_BUY
+                    : OrderDirection.ORDER_DIRECTION_SELL;
+
+            // Создаем ордер
+            OrderDTO order = OrderDTO.create(quantity, adjustedPrice, orderDirection, accountId, instrumentId,
+                    startTime);
+            orders.add(order);
+
+            logger.info(
+                    "Создан лимитный ордер: инструмент={}, направление={}, цена={}, количество={}, тип лимита={}, шаг цены={}",
+                    instrumentId, direction, adjustedPrice, quantity, levels.level(), minPriceIncrement);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при генерации лимитного ордера для инструмента {}: {}", instrumentId, e.getMessage(),
+                    e);
+        }
+
+        return orders;
+    }
+
+    /**
+     * Получает лимит (limitUp или limitDown) из кэша для инструмента.
+     * 
+     * @param instrumentId идентификатор инструмента
+     * @param levels       настройки лимитов
+     * @return цена лимита или null если не удалось получить
+     */
+    private BigDecimal getLimitPriceFromCache(String instrumentId, LevelLimitDto levels) {
+        try {
+            if (instrumentServiceFacade == null) {
+                logger.warn("InstrumentServiceFacade недоступен для получения лимитов инструмента: {}", instrumentId);
+                return null;
+            }
+
+            // Получаем лимиты из кэша через TInvestApiService
+            if (tInvestApiService == null) {
+                logger.warn("TInvestApiService недоступен для получения лимитов инструмента: {}", instrumentId);
+                return null;
+            }
+
+            // Получаем лимиты для инструмента
+            com.example.investmenttradingservice.DTO.LimitsDto limits = tInvestApiService
+                    .getLimitsForInstrument(instrumentId);
+            if (limits == null) {
+                logger.warn("Лимиты для инструмента {} не найдены", instrumentId);
+                return null;
+            }
+
+            // Выбираем нужный лимит в зависимости от типа
+            BigDecimal limitPrice = null;
+            if (levels.isLimitUp()) {
+                limitPrice = limits.limitUp();
+                logger.debug("Получен limitUp для инструмента {}: {}", instrumentId, limitPrice);
+            } else if (levels.isLimitDown()) {
+                limitPrice = limits.limitDown();
+                logger.debug("Получен limitDown для инструмента {}: {}", instrumentId, limitPrice);
+            }
+
+            if (limitPrice == null || limitPrice.compareTo(BigDecimal.ZERO) <= 0) {
+                logger.warn("Лимит {} для инструмента {} не найден или некорректен", levels.level(), instrumentId);
+                return null;
+            }
+
+            return limitPrice;
+
+        } catch (Exception e) {
+            logger.error("Ошибка при получении лимита {} для инструмента {}: {}", levels.level(), instrumentId,
+                    e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Получает минимальный шаг цены для инструмента.
+     * 
+     * @param instrumentId идентификатор инструмента
+     * @return минимальный шаг цены или null если не удалось получить
+     */
+    private BigDecimal getMinPriceIncrementForInstrument(String instrumentId) {
+        try {
+            if (instrumentServiceFacade == null) {
+                logger.warn("InstrumentServiceFacade недоступен для получения шага цены инструмента: {}", instrumentId);
+                return null;
+            }
+
+            return instrumentServiceFacade.getMinPriceIncrement(instrumentId);
+        } catch (Exception e) {
+            logger.error("Ошибка при получении минимального шага цены для инструмента {}: {}", instrumentId,
+                    e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Корректирует цену до минимального шага цены инструмента.
+     * 
+     * @param price             исходная цена
+     * @param minPriceIncrement минимальный шаг цены
+     * @return скорректированная цена
+     */
+    private BigDecimal adjustPriceToIncrement(BigDecimal price, BigDecimal minPriceIncrement) {
+        try {
+            if (price == null || minPriceIncrement == null ||
+                    price.compareTo(BigDecimal.ZERO) <= 0 ||
+                    minPriceIncrement.compareTo(BigDecimal.ZERO) <= 0) {
+                return null;
+            }
+
+            // Округляем цену до шага цены
+            BigDecimal adjustedPrice = price.divide(minPriceIncrement, 0, java.math.RoundingMode.DOWN)
+                    .multiply(minPriceIncrement)
+                    .setScale(6, java.math.RoundingMode.HALF_UP);
+
+            logger.debug("Цена скорректирована: {} -> {} (шаг: {})", price, adjustedPrice, minPriceIncrement);
+            return adjustedPrice;
+
+        } catch (Exception e) {
+            logger.error("Ошибка при корректировке цены: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Рассчитывает количество лотов на основе суммы и цены.
+     * 
+     * @param amount  сумма для торговли
+     * @param price   цена за лот
+     * @param lotSize размер лота
+     * @return количество лотов
+     */
+    private int calculateQuantityFromAmount(BigDecimal amount, BigDecimal price, Integer lotSize) {
+        try {
+            if (amount == null || price == null || lotSize == null ||
+                    amount.compareTo(BigDecimal.ZERO) <= 0 ||
+                    price.compareTo(BigDecimal.ZERO) <= 0 ||
+                    lotSize <= 0) {
+                return 0;
+            }
+
+            // Рассчитываем количество лотов: сумма / (цена * размер_лота)
+            BigDecimal totalCost = price.multiply(new BigDecimal(lotSize));
+            BigDecimal quantity = amount.divide(totalCost, 0, java.math.RoundingMode.DOWN);
+
+            return quantity.intValue();
+        } catch (Exception e) {
+            logger.error("Ошибка при расчете количества лотов: {}", e.getMessage(), e);
+            return 0;
+        }
+    }
+
+    /**
+     * Получает размер лота для инструмента.
+     * 
+     * @param instrumentId идентификатор инструмента
+     * @return размер лота или null если не найден
+     */
+    private Integer getLotForInstrument(String instrumentId) {
+        try {
+            if (instrumentServiceFacade == null) {
+                logger.warn("InstrumentServiceFacade недоступен для получения размера лота инструмента: {}",
+                        instrumentId);
+                return null;
+            }
+
+            return instrumentServiceFacade.getLot(instrumentId);
+        } catch (Exception e) {
+            logger.error("Ошибка при получении размера лота для инструмента {}: {}",
+                    instrumentId, e.getMessage(), e);
+            return null;
+        }
     }
 }

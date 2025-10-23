@@ -230,4 +230,52 @@ public interface InstrumentServiceFacade {
      * @return цена или null если не удалось извлечь
      */
     BigDecimal extractPriceFromData(Object priceData);
+
+    /**
+     * Получает минимальный шаг цены для инструмента по FIGI из кэша.
+     * 
+     * <p>
+     * Ищет инструмент среди акций и фьючерсов в кэше, возвращает minPriceIncrement.
+     * Этот метод оптимизирован для быстрого доступа к данным из кэша.
+     * </p>
+     * 
+     * @param figi идентификатор инструмента
+     * @return минимальный шаг цены или null если не найден
+     */
+    BigDecimal getMinPriceIncrement(String figi);
+
+    /**
+     * Получает размер лота для инструмента по FIGI из кэша.
+     * 
+     * @param figi идентификатор инструмента
+     * @return размер лота или null если не найден
+     */
+    Integer getLot(String figi);
+
+    // ===========================================
+    // Методы для работы с лимитами цен (limits)
+    // ===========================================
+
+    /**
+     * Запускает синхронное обновление лимитов для всех инструментов из кэша
+     * (акции и фьючерсы) с задержкой и retry-механизмом.
+     *
+     * @return количество обновлённых записей лимитов
+     */
+    int refreshAllLimitsSync();
+
+    /**
+     * Возвращает текущий список лимитов из кэша без обращений к API.
+     *
+     * @return список {@link LimitsDto} из кэша
+     */
+    List<LimitsDto> getLimitsFromCacheOnly();
+
+    /**
+     * Возвращает лимит по конкретному инструменту из кэша.
+     *
+     * @param instrumentId FIGI/InstrumentId инструмента
+     * @return {@link LimitsDto} или null, если не найдено
+     */
+    LimitsDto getLimitByInstrumentIdFromCache(String instrumentId);
 }

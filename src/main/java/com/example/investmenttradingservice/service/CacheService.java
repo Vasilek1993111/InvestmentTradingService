@@ -17,6 +17,7 @@ import com.example.investmenttradingservice.repository.OpenPriceRepositrory;
 import com.example.investmenttradingservice.repository.ShareRepository;
 import com.example.investmenttradingservice.repository.Indicativerepository;
 import com.example.investmenttradingservice.repository.LastPriceRepository;
+import com.example.investmenttradingservice.service.cacheInstrumentsService.impl.LimitService;
 import com.example.investmenttradingservice.util.TimeZoneUtils;
 import com.example.investmenttradingservice.util.WorkingDaysUtils;
 import com.example.investmenttradingservice.enums.CacheConfig;
@@ -65,6 +66,13 @@ import java.util.Map;
  * <ul>
  * <li>sharesCache - для акций</li>
  * <li>futuresCache - для фьючерсов</li>
+ * <li>indicativesCache - для индикативов</li>
+ * <li>closePricesCache - для цен закрытия</li>
+ * <li>openPricesCache - для цен открытия</li>
+ * <li>closePricesEveningSessionCache - для цен закрытия вечерней сессии</li>
+ * <li>lastPricesCache - для последних цен</li>
+ * <li>dividendsCache - для дивидендов</li>
+ * <li>limitsCache - для лимитов цен (асинхронно)</li>
  * </ul>
  *
  * @author Investment Trading Service Team
@@ -100,6 +108,9 @@ public class CacheService {
 
     private final LastPriceRepository lastPriceRepository;
 
+    /** Сервис для работы с лимитами */
+    private final LimitService limitService;
+
     /** Менеджер кэша для управления кэшированием */
     private final CacheManager cacheManager;
 
@@ -115,6 +126,7 @@ public class CacheService {
      * @param indicativeRepository репозиторий для работы с индикативами
      * @param closePriceRepository репозиторий для работы с ценами закрытия
      * @param openPriceRepository  репозиторий для работы с ценами открытия
+     * @param limitService         сервис для работы с лимитами
      * @param cacheManager         менеджер кэша
      */
     public CacheService(ShareRepository shareRepository,
@@ -125,6 +137,7 @@ public class CacheService {
             ClosePriceEveningSessionRepository closePriceEveningSessionRepository,
             DivedendsRepository divedendsRepository,
             LastPriceRepository lastPriceRepository,
+            LimitService limitService,
             CacheManager cacheManager) {
         this.shareRepository = shareRepository;
         this.futureRepository = futureRepository;
@@ -134,6 +147,7 @@ public class CacheService {
         this.closePriceEveningSessionRepository = closePriceEveningSessionRepository;
         this.divedendsRepository = divedendsRepository;
         this.lastPriceRepository = lastPriceRepository;
+        this.limitService = limitService;
         this.cacheManager = cacheManager;
 
         // Инициализация конфигурации кэшей
@@ -420,6 +434,19 @@ public class CacheService {
                         dividends.size());
             } else {
                 logger.warn("[{}] В базе данных не найдено дивидендов на сегодня/завтра", taskId);
+            }
+
+            // Прогрев кэша лимитов (синхронно с задержкой)
+            logger.info("[{}] Запуск прогрева кэша лимитов", taskId);
+            if (limitService != null) {
+                try {
+                    int count = limitService.refreshAllLimits();
+                    logger.info("[{}] Кэш лимитов успешно прогрет: {} записей", taskId, count);
+                } catch (Exception ex) {
+                    logger.error("[{}] Ошибка при прогреве кэша лимитов: {}", taskId, ex.getMessage(), ex);
+                }
+            } else {
+                logger.warn("[{}] LimitService недоступен, пропускаем прогрев кэша лимитов", taskId);
             }
 
             logger.info("[{}] Прогрев кэша завершен успешно", taskId);

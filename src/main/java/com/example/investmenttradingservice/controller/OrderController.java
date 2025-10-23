@@ -6,7 +6,8 @@ import com.example.investmenttradingservice.DTO.OrderDTO;
 import com.example.investmenttradingservice.DTO.OrderResponseDTO;
 import com.example.investmenttradingservice.DTO.TinkoffPostOrderResponseDTO;
 import com.example.investmenttradingservice.DTO.ApiSuccessResponse;
-import com.example.investmenttradingservice.DTO.SingleOrderRequest;
+import com.example.investmenttradingservice.DTO.LimitOrderRequest;
+import com.example.investmenttradingservice.DTO.LimitOrderResponse;
 import com.example.investmenttradingservice.exception.ValidationException;
 import com.example.investmenttradingservice.exception.BusinessLogicException;
 
@@ -15,7 +16,6 @@ import com.example.investmenttradingservice.service.DelayedOrderService;
 import com.example.investmenttradingservice.service.OrderPersistenceService;
 import com.example.investmenttradingservice.shedullers.OrderSchedulerService;
 import com.example.investmenttradingservice.service.OrderCacheService;
-import com.example.investmenttradingservice.service.TInvestApiService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,11 +23,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * REST контроллер для управления заявками и планировщиком.
@@ -51,9 +48,6 @@ public class OrderController {
     private DelayedOrderService delayedOrderService;
 
     @Autowired
-    private TInvestApiService tInvestApiService;
-
-    @Autowired
     private OrderPersistenceService orderPersistenceService;
 
     @Autowired
@@ -62,6 +56,8 @@ public class OrderController {
     @Autowired
     private OrderCacheService orderCacheService;
 
+    @Autowired
+    private OrderGenerationService orderGenerationService;
 
     /**
      * Создает групповую заявку.
@@ -136,6 +132,64 @@ public class OrderController {
             logger.error("Неожиданная ошибка при создании заявки с ценой для инструмента {}: {}", request.instrument(),
                     e.getMessage(), e);
             throw new RuntimeException("Внутренняя ошибка при создании заявки с ценой", e);
+        }
+    }
+
+    /**
+     * Создает лимитные ордера для множественных инструментов.
+     * Поддерживает типы лимитов: limitUp и limitDown.
+     * 
+     * @param request данные лимитного ордера
+     * @return ответ с созданными ордерами
+     */
+    @PostMapping("/by-limit")
+    public ResponseEntity<LimitOrderResponse> createLimitOrders(@RequestBody LimitOrderRequest request) {
+        try {
+            logger.info("Создание лимитных ордеров для {} инструментов, тип лимита: {}, время: {}",
+                    request.getInstrumentsCount(), request.levels().level(), request.start_time());
+
+            // Валидация запроса
+            if (request.instruments() == null || request.instruments().isEmpty()) {
+                throw new ValidationException(
+                        "Список инструментов не может быть пустым",
+                        "instruments",
+                        "empty_list");
+            }
+
+            if (request.levels() == null) {
+                throw new ValidationException(
+                        "Уровни лимитов обязательны",
+                        "levels",
+                        "null");
+            }
+
+            // Обработка через существующий сервис (адаптируем под новую структуру)
+            List<OrderDTO> orders = delayedOrderService.processLimitOrders(request);
+
+            if (orders.isEmpty()) {
+                logger.warn("Не удалось создать лимитные ордера");
+                throw new BusinessLogicException(
+                        "Не удалось создать лимитные ордера",
+                        "LIMIT_ORDERS_NOT_CREATED");
+            }
+
+            LimitOrderResponse response = LimitOrderResponse.of(
+                    orders,
+                    request.levels().level(),
+                    request.getInstrumentsCount());
+
+            logger.info("Создано {} лимитных ордеров типа {}", response.getSuccessCount(), request.levels().level());
+            return ResponseEntity.ok(response);
+
+        } catch (ValidationException e) {
+            logger.warn("Валидация не пройдена для лимитных ордеров: {}", e.getMessage());
+            throw e;
+        } catch (BusinessLogicException e) {
+            logger.warn("Бизнес-логика не пройдена для лимитных ордеров: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            logger.error("Неожиданная ошибка при создании лимитных ордеров: {}", e.getMessage(), e);
+            throw new RuntimeException("Внутренняя ошибка при создании лимитных ордеров", e);
         }
     }
 
@@ -554,18 +608,6 @@ public class OrderController {
             logger.error("Ошибка при получении заявок с ошибками: {}", e.getMessage(), e);
             throw new RuntimeException("Внутренняя ошибка при получении заявок с ошибками", e);
         }
-    }
-
-    @GetMapping("/limits/{instrumentId}")
-    public ResponseEntity<Map<String, Object>> getLimitsForInstrument(@PathVariable String instrumentId) {
-        List<BigDecimal> limits = tInvestApiService.getLimitsForInstrument(instrumentId);
-        Map<String, Object> response = new HashMap<>();
-        response.put("instrumentId", instrumentId);
-        BigDecimal limitDown = limits.get(0);
-        BigDecimal limitUp = limits.get(1);
-        response.put("limitDown", limitDown);
-        response.put("limitUp", limitUp);
-        return ResponseEntity.ok(response);
     }
 
 }

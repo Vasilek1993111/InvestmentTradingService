@@ -24,6 +24,7 @@ import com.example.investmenttradingservice.DTO.OpenPriceDTO;
 import com.example.investmenttradingservice.DTO.ShareDTO;
 import com.example.investmenttradingservice.DTO.LastPriceDTO;
 import com.example.investmenttradingservice.DTO.DividendDto;
+import com.example.investmenttradingservice.DTO.LimitsDto;
 import com.example.investmenttradingservice.DTO.ApiSuccessResponse;
 import com.example.investmenttradingservice.exception.EmptyInstrumentsListException;
 import com.example.investmenttradingservice.exception.InstrumentNotFoundException;
@@ -48,6 +49,8 @@ import com.example.investmenttradingservice.util.ApiResponseBuilder;
  * <li>Принудительное обновление кэша</li>
  * <li>Получение инструментов из кэша</li>
  * <li>Получение цен из кэша</li>
+ * <li>Получение лимитов из кэша</li>
+ * <li>Синхронное обновление лимитов в кэше с задержкой и retry</li>
  * </ul>
  *
  * @author Investment Trading Service Team
@@ -631,6 +634,152 @@ public class CacheController {
             response.put("status", "error");
             response.put("error", e.getClass().getSimpleName());
             response.put("timestamp", System.currentTimeMillis());
+
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    // ===========================================
+    // Методы для работы с лимитами цен (limits)
+    // ===========================================
+
+    /**
+     * Получение лимитов для одного инструмента по FIGI из кэша
+     *
+     * <p>
+     * Этот эндпоинт возвращает лимиты цены (верхний и нижний) для конкретного
+     * инструмента из кэша без обращения к API.
+     * </p>
+     *
+     * @param figi идентификатор инструмента для поиска лимитов
+     * @return ResponseEntity с лимитами инструмента
+     */
+    @GetMapping("/limits/{figi}")
+    public ResponseEntity<ApiSuccessResponse<LimitsDto>> getLimitByFigi(@PathVariable String figi) {
+        logger.info("Получен запрос на лимиты для FIGI: {}", figi);
+
+        // Валидация FIGI
+        if (figi == null || figi.trim().isEmpty()) {
+            throw new ValidationException(
+                    "FIGI не может быть пустым",
+                    "figi",
+                    figi);
+        }
+
+        if (!figi.matches("^[A-Z0-9]{12}$")) {
+            throw new ValidationException(
+                    "FIGI должен содержать ровно 12 символов (буквы и цифры)",
+                    "figi",
+                    figi);
+        }
+
+        try {
+            LimitsDto limit = instrumentServiceFacade.getLimitByInstrumentIdFromCache(figi);
+
+            if (limit == null) {
+                throw new InstrumentNotFoundException(
+                        String.format("Лимиты для инструмента с FIGI '%s' не найдены в кэше", figi),
+                        figi);
+            }
+
+            logger.info("Лимиты для FIGI {} найдены в кэше", figi);
+
+            ApiSuccessResponse<LimitsDto> response = ApiSuccessResponse.<LimitsDto>builder()
+                    .message(String.format("Лимиты для инструмента %s получены из кэша", figi))
+                    .data(limit)
+                    .totalCount(1)
+                    .dataType("limits")
+                    .addMetadata("figi", figi)
+                    .addMetadata("cacheStatus", "active")
+                    .build();
+
+            return ResponseEntity.ok(response);
+
+        } catch (InstrumentNotFoundException | ValidationException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("Неожиданная ошибка при получении лимитов для FIGI {}: {}", figi, e.getMessage(), e);
+            throw new RuntimeException("Внутренняя ошибка при получении лимитов", e);
+        }
+    }
+
+    /**
+     * Получение всех лимитов из кэша
+     *
+     * <p>
+     * Этот эндпоинт возвращает лимиты для всех инструментов, которые есть в кэше
+     * лимитов.
+     * Возвращает полный список всех доступных лимитов без фильтрации.
+     * </p>
+     *
+     * @return ResponseEntity с полным списком лимитов из кэша
+     */
+    @GetMapping("/limits")
+    public ResponseEntity<ApiSuccessResponse<List<LimitsDto>>> getAllLimits() {
+        logger.info("Получен запрос на все лимиты из кэша");
+
+        try {
+            List<LimitsDto> allLimits = instrumentServiceFacade.getLimitsFromCacheOnly();
+
+            logger.info("Получено {} лимитов из кэша", allLimits.size());
+
+            ApiSuccessResponse<List<LimitsDto>> response = ApiSuccessResponse.<List<LimitsDto>>builder()
+                    .message(String.format("Получено %d лимитов из кэша", allLimits.size()))
+                    .data(allLimits)
+                    .totalCount(allLimits.size())
+                    .dataType("limits")
+                    .addMetadata("cacheStatus", "active")
+                    .addMetadata("source", "cache")
+                    .build();
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            logger.error("Неожиданная ошибка при получении всех лимитов из кэша: {}", e.getMessage(), e);
+            throw new RuntimeException("Внутренняя ошибка при получении лимитов", e);
+        }
+    }
+
+    /**
+     * Обновление всех лимитов в кэше с задержкой и retry-механизмом
+     *
+     * <p>
+     * Этот эндпоинт запускает обновление лимитов для всех инструментов
+     * (акций и фьючерсов) из кэша с задержкой 100ms между запросами и
+     * retry-механизмом
+     * для соблюдения rate limits API. Возвращает результат после завершения
+     * операции.
+     * </p>
+     *
+     * @return ResponseEntity с результатом обновления
+     */
+    @PostMapping("/limits/refresh")
+    public ResponseEntity<Map<String, Object>> refreshLimits() {
+        logger.info("Получен запрос на обновление лимитов в кэше");
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            long startTime = System.currentTimeMillis();
+            int count = instrumentServiceFacade.refreshAllLimitsSync();
+            long duration = System.currentTimeMillis() - startTime;
+
+            response.put("message",
+                    String.format("Обновление лимитов завершено успешно. Обновлено записей: %d", count));
+            response.put("status", "success");
+            response.put("updatedCount", count);
+            response.put("durationMs", duration);
+            response.put("timestamp", LocalDateTime.now());
+
+            logger.info("Обновление лимитов завершено через API: {} записей за {}ms", count, duration);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при обновлении лимитов через API: {}", e.getMessage(), e);
+
+            response.put("message", "Ошибка при обновлении лимитов: " + e.getMessage());
+            response.put("status", "error");
+            response.put("error", e.getClass().getSimpleName());
+            response.put("timestamp", LocalDateTime.now());
 
             return ResponseEntity.internalServerError().body(response);
         }

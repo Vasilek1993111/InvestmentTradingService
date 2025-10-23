@@ -1,5 +1,6 @@
 package com.example.investmenttradingservice.DTO;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -35,14 +36,20 @@ import java.time.LocalDateTime;
  *         "RUB", "MOEX", true, LocalDateTime.of(2024, 3, 15, 0, 0));
  * }</pre>
  * 
- * @param figi           уникальный идентификатор финансового инструмента (FIGI)
- * @param ticker         торговый символ фьючерса (например, Si-3.24, RTS-3.24)
- * @param assetType      тип базового актива (Share, Currency, Commodity и т.д.)
- * @param basicAsset     базовый актив фьючерса (например, USD/RUB, SBER)
- * @param currency       валюта, в которой торгуется фьючерс (RUB, USD, EUR)
- * @param exchange       биржа, где торгуется фьючерс (MOEX, CME и т.д.)
- * @param shortEnabled   возможность совершения коротких продаж
- * @param expirationDate дата и время экспирации фьючерсного контракта
+ * @param figi              уникальный идентификатор финансового инструмента
+ *                          (FIGI)
+ * @param ticker            торговый символ фьючерса (например, Si-3.24,
+ *                          RTS-3.24)
+ * @param assetType         тип базового актива (Share, Currency, Commodity и
+ *                          т.д.)
+ * @param basicAsset        базовый актив фьючерса (например, USD/RUB, SBER)
+ * @param currency          валюта, в которой торгуется фьючерс (RUB, USD, EUR)
+ * @param exchange          биржа, где торгуется фьючерс (MOEX, CME и т.д.)
+ * @param shortEnabled      возможность совершения коротких продаж
+ * @param expirationDate    дата и время экспирации фьючерсного контракта
+ * @param lot               размер лота (минимальное количество для
+ *                          покупки/продажи)
+ * @param minPriceIncrement минимальный шаг цены
  * 
  * @author Investment Trading Service Team
  * @version 1.0.0
@@ -56,7 +63,9 @@ public record FutureDTO(
         String currency,
         String exchange,
         Boolean shortEnabled,
-        LocalDateTime expirationDate
+        LocalDateTime expirationDate,
+        Integer lot,
+        BigDecimal minPriceIncrement
 
 ) {
 }
