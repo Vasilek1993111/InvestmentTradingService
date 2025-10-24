@@ -328,16 +328,27 @@ public class OrderGenerationService {
             BigDecimal minPriceIncrement = instrumentServiceFacade != null
                     ? instrumentServiceFacade.getMinPriceIncrement(instrumentId)
                     : null;
-            if (minPriceIncrement != null) {
-                BigDecimal roundedPrice = calculateAjustedPriceWithMinPriceIncrement(adjustedPrice, minPriceIncrement);
-
-                logger.info("Цена округлена до шага: {} -> {} (шаг: {}, инструмент: {})",
+            
+            if (minPriceIncrement != null && minPriceIncrement.compareTo(BigDecimal.ZERO) > 0) {
+                // Округляем цену в меньшую сторону по минимальному шагу
+                BigDecimal roundedPrice = calculateAdjustedPriceWithMinPriceIncrement(adjustedPrice, minPriceIncrement);
+                
+                logger.info("Цена округлена в МЕНЬШУЮ сторону: {} -> {} (minPriceIncrement={}, инструмент={})",
                         adjustedPrice, roundedPrice, minPriceIncrement, instrumentId);
-
+                
                 adjustedPrice = roundedPrice;
             } else {
-                logger.warn("Минимальный шаг цены не найден для инструмента: {}, используем исходную цену",
-                        instrumentId);
+                // Fallback: округляем до копеек (0.01) в меньшую сторону
+                logger.warn("minPriceIncrement не найден для инструмента {}, применяем fallback-округление до 0.01", 
+                           instrumentId);
+                
+                BigDecimal defaultIncrement = new BigDecimal("0.01");
+                BigDecimal roundedPrice = calculateAdjustedPriceWithMinPriceIncrement(adjustedPrice, defaultIncrement);
+                
+                logger.info("Fallback округление: {} -> {} (шаг: 0.01, инструмент: {})",
+                        adjustedPrice, roundedPrice, instrumentId);
+                
+                adjustedPrice = roundedPrice;
             }
 
             return adjustedPrice;
@@ -487,10 +498,37 @@ public class OrderGenerationService {
         return new java.util.AbstractMap.SimpleEntry<>(orders, instrumentPrice);
     }
 
-    private BigDecimal calculateAjustedPriceWithMinPriceIncrement(BigDecimal price, BigDecimal minPriceIncrement) {
-        return price.divide(minPriceIncrement, 6, java.math.RoundingMode.DOWN)
-                .multiply(minPriceIncrement)
-                .setScale(6, java.math.RoundingMode.DOWN);
+    /**
+     * Рассчитывает округленную цену с учетом минимального шага цены инструмента.
+     * Округление происходит в МЕНЬШУЮ сторону (RoundingMode.DOWN).
+     * 
+     * <p>Алгоритм:</p>
+     * <ol>
+     *   <li>Делим цену на minPriceIncrement (получаем количество шагов)</li>
+     *   <li>Округляем вниз до целого числа шагов</li>
+     *   <li>Умножаем на minPriceIncrement</li>
+     * </ol>
+     * 
+     * @param price исходная цена
+     * @param minPriceIncrement минимальный шаг изменения цены инструмента
+     * @return округленная цена (кратная minPriceIncrement)
+     */
+    private BigDecimal calculateAdjustedPriceWithMinPriceIncrement(BigDecimal price, BigDecimal minPriceIncrement) {
+        if (minPriceIncrement == null || minPriceIncrement.compareTo(BigDecimal.ZERO) <= 0) {
+            logger.warn("Некорректный minPriceIncrement={}, возвращаем исходную цену", minPriceIncrement);
+            return price;
+        }
+        
+        // Количество шагов (округляем вниз)
+        BigDecimal steps = price.divide(minPriceIncrement, 0, java.math.RoundingMode.DOWN);
+        
+        // Округленная цена
+        BigDecimal roundedPrice = steps.multiply(minPriceIncrement);
+        
+        logger.debug("Округление цены: {} -> {} (шагов: {}, minPriceIncrement: {})", 
+                    price, roundedPrice, steps, minPriceIncrement);
+        
+        return roundedPrice;
     }
 
     /**

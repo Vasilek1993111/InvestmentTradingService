@@ -4,6 +4,7 @@ import com.example.investmenttradingservice.DTO.GroupOrderRequest;
 import com.example.investmenttradingservice.DTO.GroupOrderResponseDTO;
 import com.example.investmenttradingservice.DTO.OrderDTO;
 import com.example.investmenttradingservice.DTO.OrderResponseDTO;
+import com.example.investmenttradingservice.DTO.SingleOrderRequest;
 import com.example.investmenttradingservice.DTO.TinkoffPostOrderResponseDTO;
 import com.example.investmenttradingservice.DTO.ApiSuccessResponse;
 import com.example.investmenttradingservice.DTO.LimitOrderRequest;
@@ -55,9 +56,6 @@ public class OrderController {
 
     @Autowired
     private OrderCacheService orderCacheService;
-
-    @Autowired
-    private OrderGenerationService orderGenerationService;
 
     /**
      * Создает групповую заявку.
