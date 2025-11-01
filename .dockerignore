@@ -1,0 +1,56 @@
+# Docker ignore file для оптимизации сборки
+# Исключаем ненужные файлы из контекста сборки
+
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+
+# Logs
+logs/
+*.log
+
+# Git
+.git/
+.gitignore
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+
+# Documentation
+docs/
+*.md
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+src/test/
+
+# Build artifacts
+*.jar
+*.war
+*.ear
+
+# Temporary files
+tmp/
+temp/
+

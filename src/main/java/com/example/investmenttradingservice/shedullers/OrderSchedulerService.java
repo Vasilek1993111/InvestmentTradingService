@@ -52,16 +52,17 @@ public class OrderSchedulerService {
     private com.example.investmenttradingservice.service.OrderCacheService orderCacheService;
 
     /**
-     * Планировщик, который запускается каждую секунду для проверки заявок из кэша.
+     * Планировщик, который запускается каждую минуту для проверки заявок из кэша.
      * 
      * Логика работы:
      * 1. Отправляет заявки с точным временем в T-Invest API
      * 2. Логирует события отправки в БД для аудита
      * 3. Удаляет отправленные заявки из кэша
      * 
+     * Cron выражение: "0 * * * * *" - запуск каждую минуту на 0-й секунде
+     * Время обнуляется до секунд (withSecond(0)), поэтому проверка раз в минуту достаточна
      */
-
-    @Scheduled(cron = "1 * * * * *")
+    @Scheduled(cron = "0 * * * * *", zone = "Europe/Moscow")
     public void processScheduledOrders() {
         try {
             // Используем московскую таймзону и нормализуем до секунд
@@ -85,13 +86,29 @@ public class OrderSchedulerService {
 
             // Отправляем заявки с точным временем из кэша
             for (OrderEntity order : exactTimeOrders) {
+                final String orderId = order.getOrderId();
                 CompletableFuture.runAsync(() -> {
-                    // Задержка 100мс перед отправкой
+                    // Проверяем, что поток не был прерван
+                    if (Thread.currentThread().isInterrupted()) {
+                        logger.warn("[CACHE] Поток прерван, пропускаем заявку ID: {}", orderId);
+                        return;
+                    }
+                    
+                    // Задержка 100мс перед отправкой для распределения нагрузки
                     try {
                         TimeUnit.MILLISECONDS.sleep(DELAY_MS);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
+                        logger.warn("[CACHE] Поток прерван во время задержки для заявки ID: {}", orderId);
+                        return;
                     }
+                    
+                    // Проверяем еще раз после задержки
+                    if (Thread.currentThread().isInterrupted()) {
+                        logger.warn("[CACHE] Поток прерван после задержки, пропускаем заявку ID: {}", orderId);
+                        return;
+                    }
+                    
                     processSingleOrderFromCache(order);
                 }, criticalOperationsExecutor);
             }
@@ -104,9 +121,25 @@ public class OrderSchedulerService {
     /**
      * Обрабатывает заявку из кэша: отправляет в T-Invest API, логирует событие в
      * БД, удаляет из кэша.
+     * 
+     * Метод обеспечивает атомарность операций: проверяет наличие заявки в кэше
+     * перед обработкой для предотвращения дублирования отправок.
      */
     private void processSingleOrderFromCache(OrderEntity order) {
+        String orderId = order.getOrderId();
+        
         try {
+            // Проверяем, что заявка еще существует в кэше перед обработкой
+            // Это предотвращает race condition, когда заявка уже была удалена другим потоком
+            List<OrderEntity> allOrders = orderCacheService.getAllEntities();
+            boolean orderExists = allOrders.stream()
+                    .anyMatch(o -> orderId.equals(o.getOrderId()));
+            
+            if (!orderExists) {
+                logger.warn("[CACHE] Заявка ID {} не найдена в кэше, возможно уже обработана другим потоком", orderId);
+                return;
+            }
+
             logger.info("[CACHE] Отправка заявки ID: {}, инструмент: {}, направление: {}, количество: {}, цена: {}",
                     order.getOrderId(), order.getInstrumentId(), order.getDirection(), order.getQuantity(),
                     formatPrice(order.getPrice()));
@@ -121,7 +154,7 @@ public class OrderSchedulerService {
                 orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.SENT, response.getOrderId(),
                         null);
 
-                // Удаляем из кэша после успешной отправки
+                // Удаляем из кэша после успешной отправки (операция атомарная в OrderCacheService)
                 orderCacheService.remove(order.getOrderId());
 
             } else {
@@ -137,14 +170,19 @@ public class OrderSchedulerService {
             }
 
         } catch (Exception e) {
-            logger.error("[CACHE] Ошибка при отправке заявки ID {}: {}", order.getOrderId(), e.getMessage(), e);
+            logger.error("[CACHE] Ошибка при отправке заявки ID {}: {}", orderId, e.getMessage(), e);
 
             // Логируем событие исключения в БД (только для аудита)
-            orderPersistenceService.updateOrderStatus(order.getOrderId(), OrderStatus.ERROR, null,
-                    "Ошибка отправки: " + e.getMessage());
+            try {
+                orderPersistenceService.updateOrderStatus(orderId, OrderStatus.ERROR, null,
+                        "Ошибка отправки: " + e.getMessage());
+            } catch (Exception persistenceException) {
+                logger.error("[CACHE] Ошибка при логировании статуса заявки ID {}: {}", orderId, 
+                        persistenceException.getMessage());
+            }
 
-            // Удаляем из кэша при исключении
-            orderCacheService.remove(order.getOrderId());
+            // Удаляем из кэша при исключении (операция безопасна даже если заявка уже удалена)
+            orderCacheService.remove(orderId);
         }
     }
 

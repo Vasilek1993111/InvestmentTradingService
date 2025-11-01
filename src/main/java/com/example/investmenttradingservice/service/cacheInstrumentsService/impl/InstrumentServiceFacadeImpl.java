@@ -345,6 +345,7 @@ public class InstrumentServiceFacadeImpl implements InstrumentServiceFacade {
             allResults.addAll(futureService.getByFigiFromCacheOnly(trimmedFigi));
             allResults.addAll(indicativeService.getByFigiFromCacheOnly(trimmedFigi));
             allResults.addAll(closePriceService.getByFigiFromCacheOnly(trimmedFigi));
+            allResults.addAll(closePriceEveningSessionService.getByFigiFromCacheOnly(trimmedFigi));
             allResults.addAll(openPriceService.getByFigiFromCacheOnly(trimmedFigi));
             allResults.addAll(lastPriceService.getByFigiFromCacheOnly(trimmedFigi));
             allResults.addAll(dividendService.getByFigiFromCacheOnly(trimmedFigi));

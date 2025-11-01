@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  investment-trading-service-prod:
+    image: investment-trading-service:prod
+    container_name: investment-trading-service-prod
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - TINVEST_API_TOKEN=${TINVEST_API_TOKEN}
+      - DATABASE_URL=${DATABASE_URL:-jdbc:postgresql://localhost:5434/postgres?currentSchema=invest}
+      - DATABASE_USERNAME=${DATABASE_USERNAME}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - JAVA_OPTS=-Xmx1536m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+    ports:
+      - "8080:8080"
+    networks:
+      - investment-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  investment-network:
+    driver: bridge
+
