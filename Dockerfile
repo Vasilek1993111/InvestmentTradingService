@@ -30,8 +30,11 @@ RUN addgroup -S spring && adduser -S spring -G spring
 # Копируем JAR из build stage
 COPY --from=build /app/target/*.jar app.jar
 
-# Меняем владельца файлов
-RUN chown spring:spring app.jar
+# Создаем директорию для логов
+RUN mkdir -p /app/logs
+
+# Меняем владельца файлов и директории логов
+RUN chown -R spring:spring app.jar /app/logs
 
 # Переключаемся на непривилегированного пользователя
 USER spring:spring

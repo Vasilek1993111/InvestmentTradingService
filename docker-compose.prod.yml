@@ -1,5 +1,14 @@
 version: '3.8'
 
+# Использование:
+# 1. Создайте .env.prod файл в корне проекта с переменными:
+#    TINVEST_API_TOKEN=your_tinvest_token_here
+#    DATABASE_URL=jdbc:postgresql://host.docker.internal:5434/postgres?currentSchema=invest
+#    DATABASE_USERNAME=your_db_user
+#    DATABASE_PASSWORD=your_db_password
+# 2. Или установите переменные окружения перед запуском
+# 3. Запустите: docker-compose -f docker-compose.prod.yml up -d --build
+
 services:
   investment-trading-service-prod:
     image: investment-trading-service:prod
@@ -7,17 +16,35 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Автоматически загружает переменные из .env.prod файла
+    env_file:
+      - .env.prod
     environment:
       - SPRING_PROFILES_ACTIVE=prod
+      # Токен T-Invest API - обязателен для работы приложения
+      # Загружается из .env.prod файла или переменной окружения
       - TINVEST_API_TOKEN=${TINVEST_API_TOKEN}
-      - DATABASE_URL=${DATABASE_URL:-jdbc:postgresql://localhost:5434/postgres?currentSchema=invest}
+      # Подключение к существующей БД
+      # Вариант 1: Через host.docker.internal (Windows/Mac) - если БД на хосте или порт проброшен
+      - DATABASE_URL=${DATABASE_URL:-jdbc:postgresql://host.docker.internal:5434/postgres?currentSchema=invest}
+      # Вариант 2: Если БД в другом контейнере, укажите имя контейнера БД:
+      # - DATABASE_URL=jdbc:postgresql://имя-контейнера-БД:5432/postgres?currentSchema=invest
+      # И подключите контейнер к той же сети (см. комментарии ниже)
       - DATABASE_USERNAME=${DATABASE_USERNAME}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD}
       - JAVA_OPTS=-Xmx1536m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
     ports:
       - "8080:8080"
+    volumes:
+      - ./logs:/app/logs
     networks:
       - investment-network
+    # Для доступа к БД на хосте через host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Если БД в другом контейнере, подключите к той же сети или используйте external_links:
+    # external_links:
+    #   - имя-контейнера-БД:postgres
     deploy:
       resources:
         limits:
@@ -35,4 +62,7 @@ services:
 networks:
   investment-network:
     driver: bridge
+    # Если БД в другой сети, раскомментируйте и подключите к внешней сети:
+    # external:
+    #   name: existing-db-network
 

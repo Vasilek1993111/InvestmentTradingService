@@ -1,5 +1,14 @@
 version: '3.8'
 
+# Использование:
+# 1. Создайте .env.test файл в корне проекта с переменными:
+#    T_INVEST_TEST_TOKEN=your_tinvest_token_here
+#    TEST_DATABASE_URL=jdbc:postgresql://host.docker.internal:5434/postgres?currentSchema=invest
+#    SPRING_DATASOURCE_TEST_USERNAME=postgres
+#    SPRING_DATASOURCE_TEST_PASSWORD=your_password
+# 2. Или установите переменные окружения перед запуском
+# 3. Запустите: docker-compose -f docker-compose.test.yml up -d --build
+
 services:
   investment-trading-service-test:
     image: investment-trading-service:test
@@ -7,17 +16,35 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Автоматически загружает переменные из .env.test файла
+    env_file:
+      - .env.test
     environment:
       - SPRING_PROFILES_ACTIVE=test
+      # Токен T-Invest API - обязателен для работы приложения
+      # Загружается из .env.test файла или переменной окружения
       - T_INVEST_TEST_TOKEN=${T_INVEST_TEST_TOKEN}
-      - TEST_DATABASE_URL=${TEST_DATABASE_URL:-jdbc:postgresql://localhost:5434/postgres?currentSchema=invest}
+      # Подключение к существующей БД
+      # Вариант 1: Через host.docker.internal (Windows/Mac) - если БД на хосте или порт проброшен
+      - TEST_DATABASE_URL=${TEST_DATABASE_URL:-jdbc:postgresql://host.docker.internal:5434/postgres?currentSchema=invest}
+      # Вариант 2: Если БД в другом контейнере, укажите имя контейнера БД:
+      # - TEST_DATABASE_URL=jdbc:postgresql://имя-контейнера-БД:5432/postgres?currentSchema=invest
+      # И подключите контейнер к той же сети (см. комментарии ниже)
       - SPRING_DATASOURCE_TEST_USERNAME=${SPRING_DATASOURCE_TEST_USERNAME:-postgres}
       - SPRING_DATASOURCE_TEST_PASSWORD=${SPRING_DATASOURCE_TEST_PASSWORD:-123password123}
       - JAVA_OPTS=-Xmx1536m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
     ports:
       - "8089:8089"
+    volumes:
+      - ./logs:/app/logs
     networks:
       - investment-network
+    # Для доступа к БД на хосте через host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Если БД в другом контейнере, подключите к той же сети или используйте external_links:
+    # external_links:
+    #   - имя-контейнера-БД:postgres
     deploy:
       resources:
         limits:
@@ -35,4 +62,6 @@ services:
 networks:
   investment-network:
     driver: bridge
-
+    # Если БД в другой сети, раскомментируйте и подключите к внешней сети:
+    # external:
+    #   name: existing-db-network
