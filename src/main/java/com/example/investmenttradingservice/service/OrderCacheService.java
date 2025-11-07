@@ -55,10 +55,9 @@ public class OrderCacheService {
             return;
         }
         OrderEntity entity = orderMapper.toEntity(orderDTO);
-        // Нормализуем время до секунд (обнуляем наносекунды) для согласованности с
-        // планировщиком
+        // Нормализуем время: обнуляем только наносекунды, секунды сохраняем
         if (entity.getScheduledTime() != null) {
-            entity.setScheduledTime(entity.getScheduledTime().withSecond(0).withNano(0));
+            entity.setScheduledTime(entity.getScheduledTime().withNano(0));
         }
         orderById.put(entity.getOrderId(), entity);
         idsByTime.compute(entity.getScheduledTime(), (time, set) -> {

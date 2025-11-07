@@ -25,13 +25,13 @@ public record GroupOrderRequest(
 
         @NotBlank(message = "Опорная цена не может быть пустой") String main_price,
 
-        @NotBlank(message = "Сумма не может быть пустой") BigDecimal amount,
+        @NotNull(message = "Сумма не может быть null") BigDecimal amount,
 
         @NotBlank(message = "Направление торговли не может быть пустым") @Pattern(regexp = "^(buy|sell|all)$", message = "Направление торговли должно быть: buy, sell или all") String direction,
 
         @NotNull(message = "Время начала не может быть null") @JsonFormat(pattern = "HH:mm:ss") @JsonDeserialize(using = com.example.investmenttradingservice.util.LocalTimeOrNowDeserializer.class) LocalTime start_time,
 
-        @NotBlank(message = "Должен быть хотя бы один уровень") LevelsDTO levels)
+        @NotNull(message = "Уровни обязательны") LevelsDTO levels)
 
 {
 

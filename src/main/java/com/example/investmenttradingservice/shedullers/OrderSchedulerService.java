@@ -37,7 +37,7 @@ import com.example.investmenttradingservice.exception.BusinessLogicException;
 public class OrderSchedulerService {
 
     private static final Logger logger = LoggerFactory.getLogger(OrderSchedulerService.class);
-    private final int DELAY_MS = 100;
+    private final int DELAY_MS = 50; // Задержка перед отправкой заявки в T-Invest API
     @Autowired
     private OrderPersistenceService orderPersistenceService;
 
@@ -52,23 +52,23 @@ public class OrderSchedulerService {
     private com.example.investmenttradingservice.service.OrderCacheService orderCacheService;
 
     /**
-     * Планировщик, который запускается каждую минуту для проверки заявок из кэша.
+     * Планировщик, который запускается каждую секунду для проверки заявок из кэша.
      * 
      * Логика работы:
-     * 1. Отправляет заявки с точным временем в T-Invest API
+     * 1. Отправляет заявки с точным временем (включая секунды) в T-Invest API
      * 2. Логирует события отправки в БД для аудита
      * 3. Удаляет отправленные заявки из кэша
      * 
-     * Cron выражение: "0 * * * * *" - запуск каждую минуту на 0-й секунде
-     * Время обнуляется до секунд (withSecond(0)), поэтому проверка раз в минуту достаточна
+     * Используется fixedRate для выполнения каждую секунду (1000 мс)
+     * Поддерживает точное время с секундами для заявок
      */
-    @Scheduled(cron = "0 * * * * *", zone = "Europe/Moscow")
+    @Scheduled(fixedRate = 1000, zone = "Europe/Moscow")
     public void processScheduledOrders() {
         try {
-            // Используем московскую таймзону и нормализуем до секунд
+            // Используем московскую таймзону с секундами (обнуляем только наносекунды)
             LocalTime currentTime = LocalTime
                     .now(com.example.investmenttradingservice.util.TimeZoneUtils.getMoscowZone())
-                    .withSecond(0).withNano(0);
+                    .withNano(0);
             logger.debug("Проверка заявок для отправки в время: {}", currentTime);
 
             // Перенос просроченных заявок отключен по требованиям — заявки с прошедшим

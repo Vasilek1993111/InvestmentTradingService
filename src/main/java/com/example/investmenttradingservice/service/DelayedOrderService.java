@@ -66,9 +66,10 @@ public class DelayedOrderService {
         try {
             // Валидация времени: start_time не должен быть в прошлом (в таймзоне
             // Europe/Moscow)
+            // Учитываем секунды при валидации
             java.time.LocalTime now = java.time.LocalTime
                     .now(com.example.investmenttradingservice.util.TimeZoneUtils.getMoscowZone())
-                    .withSecond(0).withNano(0);
+                    .withNano(0);
             if (request.start_time() != null && request.start_time().isBefore(now)) {
                 throw new com.example.investmenttradingservice.exception.ValidationException(
                         "Время начала исполнения (start_time) не может быть в прошлом",
@@ -178,7 +179,11 @@ public class DelayedOrderService {
             }
 
             // Немедленная отправка
-            java.time.LocalTime nowNormalized = now;
+            // Для проверки "now" сравниваем с текущим временем, обнуленным до секунд
+            // (так как "now" десериализуется с обнуленными секундами)
+            java.time.LocalTime nowNormalized = java.time.LocalTime
+                    .now(com.example.investmenttradingservice.util.TimeZoneUtils.getMoscowZone())
+                    .withSecond(0).withNano(0);
             boolean isImmediate = request.start_time() != null && request.start_time().equals(nowNormalized);
             if (isImmediate) {
                 for (OrderDTO dto : orders) {
@@ -413,7 +418,11 @@ public class DelayedOrderService {
             logger.info("Лимитные ордера сохранены в кэш и БД: {}", allOrders.size());
 
             // Немедленная отправка если время "now"
-            java.time.LocalTime nowNormalized = now;
+            // Для проверки "now" сравниваем с текущим временем, обнуленным до секунд
+            // (так как "now" десериализуется с обнуленными секундами)
+            java.time.LocalTime nowNormalized = java.time.LocalTime
+                    .now(com.example.investmenttradingservice.util.TimeZoneUtils.getMoscowZone())
+                    .withSecond(0).withNano(0);
             boolean isImmediate = request.start_time() != null && request.start_time().equals(nowNormalized);
             if (isImmediate) {
                 logger.info("Выполняется немедленная отправка {} лимитных ордеров", allOrders.size());
